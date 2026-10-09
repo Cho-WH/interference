@@ -1,4 +1,4 @@
-import type { Bounds, FieldMode, FieldTransform } from '../model/types';
+import type { Bounds, FieldMode, FieldTransform, Vec2 } from '../model/types';
 import type { FieldProgram } from '../physics/field-program';
 import { paletteTable, type PaletteId } from '../visual/field-palettes';
 
@@ -18,6 +18,7 @@ const fragment = (kernel: string) => `#version 300 es
 precision highp float;
 precision highp sampler2D;
 uniform vec2 uBounds;
+uniform vec2 uOrigin;
 uniform vec2 uGrid;
 uniform float uAmplitude;
 uniform sampler2D uPalette;
@@ -25,7 +26,7 @@ out vec4 color;
 ${kernel}
 void main() {
   vec2 fraction = (gl_FragCoord.xy - 0.5) / max(vec2(1.0), uGrid - 1.0);
-  vec2 point = vec2(fraction.x, 1.0 - fraction.y) * uBounds;
+  vec2 point = uOrigin + vec2(fraction.x, 1.0 - fraction.y) * uBounds;
   float value = fieldValue(point, uAmplitude > 0.5);
   float index = uAmplitude > 0.5 ? value * 512.0 : value * 256.0 + 256.0;
   color = texelFetch(uPalette, ivec2(int(clamp(floor(index + 0.5), 0.0, 512.0)), 0), 0);
@@ -34,6 +35,7 @@ void main() {
 type Texture = { texture: WebGLTexture; width: number; height: number; data?: Float32Array };
 export type FieldDraw = {
   bounds: Bounds; transform: FieldTransform; columns: number; rows: number;
+  origin?: Vec2;
   mode: FieldMode; palette: PaletteId; dpr: number; redraw: boolean;
 };
 
@@ -165,11 +167,11 @@ export function createWebGLField(canvas: HTMLCanvasElement) {
             gl.uniform1i(location('uPalette'), unit);
             for (const [name, value] of Object.entries(packet.uniforms)) uniform(name, value);
             uniform('uGrid', [columns, rows]); uniform('uBounds', [bounds.width, bounds.height]); uniform('uAmplitude', Number(mode === 'amplitude'));
+            uniform('uOrigin', [draw.origin?.x ?? 0, draw.origin?.y ?? 0]);
             gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer); gl.viewport(0, 0, columns, rows); gl.drawArrays(gl.TRIANGLES, 0, 3);
           }
           gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, width, height);
           gl.clearColor(13 / 255, 34 / 255, 47 / 255, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-          gl.viewport(Math.round(transform.offsetX * dpr), Math.round((transform.height - transform.offsetY - bounds.height * transform.scale) * dpr), Math.round(bounds.width * transform.scale * dpr), Math.round(bounds.height * transform.scale * dpr));
           gl.useProgram(displayProgram); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, output.texture);
           gl.uniform1i(displayImage, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
         } finally { if (query) { gl.endQuery(timer!.TIME_ELAPSED_EXT); pending.push(query); } }

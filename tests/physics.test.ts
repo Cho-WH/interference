@@ -9,6 +9,87 @@ import { createClock } from '../src/runtime/clock';
 
 const TAU = 2 * Math.PI;
 const close = (actual: number, expected: number, epsilon = 1e-10) => assert.ok(Math.abs(actual - expected) < epsilon, `${actual} ≠ ${expected}`);
+
+test('transient interference envelope follows retarded phases and converges to steady amplitude', () => {
+  const model = createModel(), engine = createRetardedEngine(model);
+  const before = engine.read(model.probe).sampleField(13, 9, 'amplitude').values;
+  engine.advanceTo(1); engine.setWavelength(.24);
+  assert.deepEqual(engine.read(model.probe).sampleField(13, 9, 'amplitude').values, before);
+  engine.advanceTo(3);
+  const frame = engine.read(model.probe), grid = frame.sampleField(13, 9, 'amplitude');
+  assert.equal(frame.snapshot.steady, false);
+  assert.notDeepEqual(grid.values, before);
+  for (let y = 0; y < 9; y++) for (let x = 0; x < 13; x++) {
+    const phases = model.sources.map(s => {
+      const emitted = 3 - Math.hypot(x / 12 * model.bounds.width - s.position.x, y / 8 * model.bounds.height - s.position.y) / model.speed;
+      return TAU * (emitted <= 1 ? model.speed / model.wavelength * emitted : model.speed / model.wavelength + model.speed / .24 * (emitted - 1));
+    });
+    close(grid.values[y * 13 + x], Math.abs(Math.cos((phases[1] - phases[0]) / 2)), 1e-6);
+  }
+  engine.advanceTo(30);
+  const settled = engine.read(model.probe), final = settled.sampleField(13, 9, 'amplitude');
+  assert.equal(settled.snapshot.steady, true);
+  assert.deepEqual(final, engine.read(model.probe, undefined, { equilibriumSources: [model.sources[0].position, model.sources[1].position] }).sampleField(13, 9, 'amplitude'));
+  assert.deepEqual(frame.sampleField(13, 9, 'amplitude'), grid);
+});
+
+test('settling adopts the final field without resetting time or phase and eliminates pending motion', () => {
+  const model = createModel(), engine = createRetardedEngine(model);
+  const targets = [{ x: .4, y: .09 }, { x: .4, y: .63 }] as const;
+  engine.advanceTo(2);
+  engine.setSourceTargets(targets); engine.setWavelength(.2);
+  engine.advanceTo(2.5);
+  const old = engine.read(model.probe), oldValues = old.sampleField(5, 5, 'wave').values;
+  const final = engine.read(model.probe, undefined, { equilibriumSources: targets });
+  engine.settle();
+  const settled = engine.read(model.probe);
+  assert.deepEqual(settled.snapshot.clock, old.snapshot.clock);
+  assert.equal(settled.snapshot.steady, true);
+  assert.equal(settled.snapshot.moving, false);
+  assert.deepEqual(settled.snapshot.probe, final.snapshot.probe);
+  assert.deepEqual(settled.sampleField(5, 5, 'wave'), final.sampleField(5, 5, 'wave'));
+  assert.deepEqual(settled.samplePaths(), final.samplePaths());
+  assert.deepEqual(settled.fieldProgram!()!.uniforms.uCounts, [1, 1]);
+  engine.advanceTo(3);
+  const later = engine.read(model.probe);
+  assert.deepEqual(later.snapshot.model.sources, settled.snapshot.model.sources);
+  close(later.snapshot.clock.temporalPhase - settled.snapshot.clock.temporalPhase, TAU * .12 / .2 * .5);
+  assert.deepEqual(old.sampleField(5, 5, 'wave').values, oldValues);
+  const beforeEdit = later.sampleField(5, 5, 'wave').values;
+  engine.setWavelength(.1);
+  assert.equal(engine.read(model.probe).snapshot.steady, false);
+  assert.deepEqual(engine.read(model.probe).sampleField(5, 5, 'wave').values, beforeEdit);
+});
+
+test('equilibrium frames immediately use requested settings without rewriting live propagation', () => {
+  const model = createModel(), engine = createRetardedEngine(model);
+  engine.advanceTo(1);
+  engine.setWavelength(.1);
+  const targets = [{ x: .4, y: .09 }, { x: .4, y: .63 }] as const;
+  engine.setSourceTargets(targets);
+  const live = engine.read(model.probe);
+  const equilibrium = engine.read(model.probe, undefined, { equilibriumSources: targets });
+  assert.equal(live.snapshot.steady, false);
+  assert.equal(equilibrium.snapshot.steady, true);
+  assert.equal(equilibrium.snapshot.moving, false);
+  assert.deepEqual(equilibrium.snapshot.clock, live.snapshot.clock);
+  assert.deepEqual(equilibrium.snapshot.model.sources.map(s => s.position), targets);
+  const point = { x: .7, y: .2 }, k = TAU / .1;
+  const lengths = targets.map(s => Math.hypot(point.x - s.x, point.y - s.y));
+  const expected = .02 * Math.abs(Math.cos(k * (lengths[1] - lengths[0]) / 2));
+  close(equilibrium.samplePoint(point).resultantAmplitude!, expected);
+  const grid = equilibrium.sampleField(3, 3, 'amplitude');
+  close(grid.values[0], equilibrium.samplePoint({ x: 0, y: 0 }).resultantAmplitude! / .02, 1e-6);
+  equilibrium.samplePaths().forEach((path, i) => close(path.displacements.at(-1)!, equilibrium.snapshot.probe.componentDisplacements[i]));
+  const program = equilibrium.fieldProgram!()!;
+  assert.equal(program.uniforms.uSteady, 1);
+  assert.deepEqual(program.uniforms.uSources, [.4, .09, .4, .63]);
+  assert.deepEqual(engine.read(model.probe).snapshot, live.snapshot);
+  engine.advanceTo(2);
+  assert.notDeepEqual(engine.read(model.probe).snapshot.model.sources, live.snapshot.model.sources);
+  assert.deepEqual(equilibrium.snapshot.model.sources.map(s => s.position), targets);
+  close(equilibrium.samplePoint(point).resultantAmplitude!, expected);
+});
 function withDifference(ratio: number): ModelState {
   const model = createModel();
   return { ...model, probe: { x: 1, y: .36 }, sources: [
@@ -45,14 +126,14 @@ test('a wavelength change travels outwards, preserves old waves, and keeps sourc
   engine.setWavelength(.24);
   close(engine.read(source).snapshot.probe.componentDisplacements[0], before);
   engine.advanceTo(1.5); original.advanceTo(1.5);
-  const far = { x: 1.1, y: .24 }, near = { x: .424, y: .24 };
+  const far = { x: 1.1, y: source.y }, near = { x: .424, y: source.y };
   close(engine.read(far).snapshot.probe.componentDisplacements[0], original.read(far).snapshot.probe.componentDisplacements[0]);
   const emitted = 1.5 - .024 / .12;
-  close(engine.read(near).snapshot.probe.componentDisplacements[0], .01 * Math.sin(TAU * (.75 + .5 * (emitted - 1))));
+  close(engine.read(near).snapshot.probe.componentDisplacements[0], .01 * Math.sin(TAU * (.8 + .5 * (emitted - 1))));
   const pending = engine.read(far);
   assert.equal(pending.snapshot.probe.resultantAmplitude, null);
   assert.equal(pending.snapshot.probe.interference, 'transient');
-  assert.throws(() => pending.sampleField(3, 3, 'amplitude'));
+  assert.ok(pending.sampleField(3, 3, 'amplitude').values.every(v => v >= 0 && v <= 1));
   engine.advanceTo(20);
   assert.equal(engine.read(far).snapshot.steady, true);
 });
@@ -179,13 +260,40 @@ test('cached stationary fields match point physics through wavelength edits, mot
   engine.setWavelength(.06); engine.advanceTo(21); check();
   engine.reset(model); engine.setWavelength(.24); check(9, 1);
 });
-test('desired input remains bounded and separate from actual source motion', () => {
+test('probe accepts finite world coordinates while source controls remain bounded', () => {
   const model = createModel();
-  assert.deepEqual(updateModel(model, { type: 'probe', position: { x: -4, y: 9 } }).probe, { x: 0, y: .72 });
+  assert.deepEqual(updateModel(model, { type: 'probe', position: { x: -.1, y: -.1 } }).probe, { x: -.1, y: -.1 });
+  assert.equal(updateModel(model, { type: 'probe', position: { x: NaN, y: Infinity } }), model);
   assert.deepEqual(model.probe, { x: .85, y: .36 });
   assert.equal(updateModel(model, { type: 'wavelength', value: 0 }).wavelength, .06);
   const separated = updateModel(model, { type: 'separation', value: 10 });
   close(separated.sources[1].position.y - separated.sources[0].position.y, .54);
   assert.deepEqual(separated.sources.map(s => s.id), ['source-1', 'source-2']);
   assert.equal(updateModel(model, { type: 'wavelength', value: NaN }), model);
+});
+
+test('extended field retains old emissions through motion, wavelength edits and later viewport expansion', () => {
+  const model = createModel();
+  const envelope = { x: -2, y: -1, width: 5, height: 3 };
+  const engine = createRetardedEngine(model, envelope);
+  const point = { x: -1.9, y: -.9 };
+  engine.setWavelength(.06);
+  engine.setSourceTargets([{ x: .4, y: .09 }, { x: .4, y: .63 }]);
+  engine.advanceTo(14);
+  assert.equal(engine.read(model.probe).snapshot.steady, true);
+  const frame = engine.read(model.probe, envelope);
+  assert.equal(frame.snapshot.steady, false);
+  const expected = model.sources.reduce((sum, s) => {
+    const emitted = 14 - Math.hypot(point.x - s.position.x, point.y - s.position.y) / model.speed;
+    assert.ok(emitted < 0);
+    return sum + s.amplitude * Math.sin(2 * Math.PI * model.speed / model.wavelength * emitted);
+  }, 0);
+  close(frame.samplePoint(point).resultantDisplacement, expected);
+  const small = { x: point.x - .01, y: point.y - .01, width: .02, height: .02 };
+  close(engine.read(model.probe, small).sampleField(1, 1, 'wave').values[0], expected / .02, 1e-6);
+  const before = frame.sampleField(13, 9, 'wave').values;
+  engine.advanceTo(80);
+  assert.deepEqual(frame.sampleField(13, 9, 'wave').values, before);
+  assert.equal(engine.read(model.probe, envelope).snapshot.steady, true);
+  assert.throws(() => engine.read(model.probe, { ...envelope, x: -3 }), RangeError);
 });

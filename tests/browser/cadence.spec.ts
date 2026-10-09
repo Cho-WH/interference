@@ -34,7 +34,7 @@ test('transient sampling drops to 30 Hz even during input, while physical time a
     } as typeof original;
   });
   await page.goto('/');
-  await page.getByRole('button', { name: '경로 비교', exact: true }).click();
+  await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
   await expect(page.locator('[data-view="comparison"]')).toHaveAttribute('data-progress', '1');
   const steady = await displayedFrames(page);
   expect(steady.count).toBeGreaterThan(40);

@@ -1,4 +1,34 @@
-import type { Bounds, FieldTransform, Vec2 } from '../model/types';
+import type { Bounds, FieldBounds, FieldTransform, Vec2 } from '../model/types';
+
+export const COMPARISON_HEIGHT = 210;
+export const LANDSCAPE_COMPARISON_HEIGHT = 180;
+
+export function landscapeColumns(width: number) {
+  const comparisonWidth = Math.max(286, width * .55);
+  return { comparisonWidth, fieldWidth: width - comparisonWidth };
+}
+
+export function visibleFieldBounds(transform: FieldTransform): FieldBounds {
+  return { x: -transform.offsetX / transform.scale, y: -transform.offsetY / transform.scale,
+    width: transform.width / transform.scale, height: transform.height / transform.scale };
+}
+
+/** Reserve history for every supported layout before any history can be pruned.
+ * Limits cover .app-shell/.workspace/.field in styles.css, including phone rotation.
+ */
+export function sceneFieldEnvelope(bounds: Bounds, sourceExtremes: readonly Vec2[]): FieldBounds {
+  const views = [286, 1000].flatMap(width => [170, 360].map(height =>
+    visibleFieldBounds(createSceneTransform(bounds, sourceExtremes, width, height))));
+  // Include closed and expanded cameras in short landscape layouts.
+  for (const width of [526, 1000]) for (const height of [180, 360]) {
+    const columns = landscapeColumns(width);
+    const scale = createSceneTransform(bounds, sourceExtremes, columns.fieldWidth, height, columns.comparisonWidth).scale;
+    views.push(visibleFieldBounds(createFieldTransform(bounds, width, height, scale)));
+  }
+  const x = Math.min(0, ...views.map(v => v.x)), y = Math.min(0, ...views.map(v => v.y));
+  return { x, y, width: Math.max(bounds.width, ...views.map(v => v.x + v.width)) - x,
+    height: Math.max(bounds.height, ...views.map(v => v.y + v.height)) - y };
+}
 
 export function createFieldTransform(bounds: Bounds, width: number, height: number, scale = Math.min(width / bounds.width, height / bounds.height)): FieldTransform {
   return {
@@ -21,7 +51,9 @@ export function toWorld(point: Vec2, transform: FieldTransform): Vec2 {
 export type ComparisonLayout = Readonly<{
   startX: number;
   pointX: number;
-  rowZeros: readonly [number, number, number];
+  sumX: number;
+  sumZeroY: number;
+  rowZeros: readonly [number, number];
   distanceScale: number;
   displacementScale: number;
   componentAmplitudePx: number;
@@ -30,7 +62,7 @@ export type ComparisonLayout = Readonly<{
 
 /** Fixed layout reserves the entire allowed range, not the current P distance. */
 function comparisonColumns(width: number) {
-  return { startX: width < 600 ? 22 : 30, pointX: width - 30, gap: 32 };
+  return { startX: width < 600 ? 22 : 30, pointX: width - 80, sumX: width - 28, gap: 32 };
 }
 
 export function maximumPathLength(bounds: Bounds, sourceExtremes: readonly Vec2[]): number {
@@ -42,9 +74,9 @@ export function maximumPathLength(bounds: Bounds, sourceExtremes: readonly Vec2[
 
 /** One pixels-per-meter value owns both the spatial field and unfolded paths. */
 export function createSceneTransform(
-  bounds: Bounds, sourceExtremes: readonly Vec2[], width: number, fieldHeight: number,
+  bounds: Bounds, sourceExtremes: readonly Vec2[], width: number, fieldHeight: number, comparisonWidth = width,
 ): FieldTransform {
-  const { startX, pointX, gap } = comparisonColumns(width);
+  const { startX, pointX, gap } = comparisonColumns(comparisonWidth);
   const scale = Math.min(width / bounds.width, fieldHeight / bounds.height,
     Math.max(1, pointX - startX - gap) / maximumPathLength(bounds, sourceExtremes));
   return createFieldTransform(bounds, width, fieldHeight, scale);
@@ -55,13 +87,16 @@ export function computeComparisonLayout(
   fieldHeight: number,
   distanceScale: number,
   amplitude: number,
+  compactHeight = false,
 ): ComparisonLayout {
-  const { startX, pointX } = comparisonColumns(width);
+  const { startX, pointX, sumX } = comparisonColumns(width);
   const componentAmplitudePx = 20;
   return {
     startX,
     pointX,
-    rowZeros: [fieldHeight + 65, fieldHeight + 141, fieldHeight + 222],
+    sumX,
+    sumZeroY: fieldHeight + (compactHeight ? 86 : 103),
+    rowZeros: [fieldHeight + (compactHeight ? 52 : 65), fieldHeight + (compactHeight ? 120 : 141)],
     distanceScale,
     displacementScale: amplitude > 0 ? componentAmplitudePx / amplitude : 1,
     componentAmplitudePx,

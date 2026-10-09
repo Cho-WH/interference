@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 const comparison = '[data-view="comparison"]';
 const phase = (page: Page) => page.locator(comparison).getAttribute('data-temporal-phase').then(Number);
 async function openComparison(page: Page) {
-  await page.getByRole('button', { name: '경로 비교', exact: true }).click();
+  await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
   await expect(page.locator(comparison)).toHaveAttribute('data-progress', '1');
 }
 async function assertCorrespondence(page: Page) {
@@ -22,7 +22,8 @@ async function assertCorrespondence(page: Page) {
   expect(result.start[0]).toBeCloseTo(result.start[1], 9);
   expect(result.scale[0]).toBeCloseTo(result.scale[1], 9);
   for (const link of result.links) for (const value of link) expect(value).toBeCloseTo(link[0], 8);
-  for (const x of result.x) expect(x).toBeCloseTo(result.x[0], 8);
+  expect(result.x[1]).toBeCloseTo(result.x[0], 8);
+  expect(result.x[2]).toBeGreaterThan(result.x[0] + 30);
   for (const s of result.scales) expect(s).toBeCloseTo(result.scales[0], 8);
   expect(result.values[2]).toBeCloseTo(result.values[0] + result.values[1], 9);
 }
@@ -32,7 +33,7 @@ test('playback, continuous unfolding, view switch, keyboard and input stay conne
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '파동의 간섭' })).toBeVisible();
-  await page.getByRole('button', { name: '경로 비교', exact: true }).click();
+  await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
   await expect.poll(async () => Number(await page.locator(comparison).getAttribute('data-progress'))).toBeGreaterThan(0);
   const unfoldingPhase = await phase(page);
   await expect(page.locator(comparison)).toHaveAttribute('data-progress', '1');
@@ -71,10 +72,17 @@ test('playback, continuous unfolding, view switch, keyboard and input stay conne
 
 test('equal, half-wave and full-wave differences preserve geometry and cancellation', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('#wavelength')).toHaveValue('15');
+  await expect(page.locator('#separation')).toHaveValue('30');
+  // This geometry fixture uses 4 cm keyboard offsets, so explicitly select 16 cm.
+  await page.locator('#wavelength').fill('16');
+  await expect(page.locator('#field-overlay')).toHaveAttribute('data-steady', 'false');
+  await expect(page.locator('#field-overlay')).toHaveAttribute('data-steady', 'true', { timeout: 15000 });
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
   await openComparison(page);
   await expect(page.locator(comparison)).toHaveAttribute('data-long-source', 'equal');
-  await expect(page.locator('[data-extra-path="source-1"]')).toHaveAttribute('visibility', 'hidden');
+  await expect(page.locator('[data-path-difference-ruler]')).toHaveAttribute('visibility', 'visible');
+  await expect(page.locator('[data-path-difference-ruler] [data-ruler-highlight]')).toHaveAttribute('visibility', 'hidden');
   // On the line between sources, |Δr| = 2|y − .36|.
   await page.locator('[data-handle="probe"]').focus();
   for (let i = 0; i < 22; i++) await page.keyboard.press('Shift+ArrowLeft');
@@ -94,10 +102,13 @@ test('equal, half-wave and full-wave differences preserve geometry and cancellat
   for (let i = 0; i < 2; i++) await page.keyboard.press('Shift+ArrowUp');
   await expect(page.locator('#path-ratio')).toHaveText('1.00λ');
   await expect(page.locator('#interference-condition')).toContainText('보강 간섭');
-  await expect(page.locator('[data-extra-path="source-2"]')).toHaveAttribute('visibility', 'visible');
+  await expect(page.locator('[data-path-difference-ruler]')).toHaveAttribute('visibility', 'visible');
   for (let i = 0; i < 8; i++) await page.keyboard.press('Shift+ArrowDown');
   await expect(page.locator(comparison)).toHaveAttribute('data-long-source', 'source-1');
   await assertCorrespondence(page);
+  await page.getByRole('button', { name: '처음으로', exact: true }).click();
+  await expect(page.locator('#wavelength')).toHaveValue('15');
+  await expect(page.locator('#separation')).toHaveValue('30');
 });
 
 test('mobile touch and reduced-motion preserve readable comparison', async ({ browser }) => {
@@ -107,7 +118,12 @@ test('mobile touch and reduced-motion preserve readable comparison', async ({ br
   await openComparison(page);
   await assertCorrespondence(page);
   const box = await page.locator('#field-overlay').boundingBox();
+  const probe = page.locator('[data-handle="probe"]');
+  await probe.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '1');
   await page.touchscreen.tap(box!.x + box!.width * .7, box!.y + box!.height * .65);
+  await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '0');
   await expect(page.locator('#first-use-hint')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
@@ -119,11 +135,18 @@ test('desktop dragging updates probe and source separation without replacing sel
   await page.goto('/');
   await openComparison(page);
   const probe = page.locator('[data-handle="probe"]');
+  await probe.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '1');
   const box = await probe.boundingBox();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
+  await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '0');
   await page.mouse.move(box!.x + box!.width / 2 + 50, box!.y + box!.height / 2 + 55, { steps: 5 });
   await page.mouse.up();
+  await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '0');
+  await page.keyboard.press('ArrowRight');
+  await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '1');
   await expect(page.locator('#first-use-hint')).toBeHidden();
   const source = page.locator('[data-handle="source-1"]');
   await source.focus();
@@ -131,6 +154,7 @@ test('desktop dragging updates probe and source separation without replacing sel
   await page.keyboard.press('ArrowUp');
   expect(Number(await page.locator('#separation').inputValue())).toBeGreaterThan(before);
   await expect(source).toBeFocused();
+  await expect(source.locator('.handle-focus')).toHaveCSS('opacity', '1');
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
   await assertCorrespondence(page);
   await page.screenshot({ path: 'test-results/desktop-comparison.png', fullPage: true });
@@ -153,7 +177,7 @@ async function inspectPixelScales(page: Page) {
       fieldScale: Number(field.getAttribute('data-distance-scale')),
       comparisonScale: Number(comparison.getAttribute('data-distance-scale')),
       fieldWavelength: Number(field.getAttribute('data-wavelength-pixels')),
-      markerWavelength: mark.getTotalLength() - 12,
+      markerWavelength: mark.getBBox().width,
     };
   });
 }
@@ -168,7 +192,7 @@ test('spatial and comparison pixels match through unfolding, movement, inputs an
   await page.goto('/');
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
   const initialScale = Number(await page.locator('#field-overlay').getAttribute('data-distance-scale'));
-  await page.getByRole('button', { name: '경로 비교', exact: true }).click();
+  await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
   await page.waitForFunction(() => Number(document.querySelector('[data-view="comparison"]')?.getAttribute('data-progress')) > .1);
   expectMatchingPixels(await inspectPixelScales(page));
   await expect(page.locator(comparison)).toHaveAttribute('data-progress', '1');

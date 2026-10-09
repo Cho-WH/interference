@@ -1,4 +1,4 @@
-import type { FieldGrid, FieldMode, PathSample, PhysicsSnapshot, ProbeSample, SourcePair, Vec2 } from '../model/types';
+import type { FieldBounds, FieldGrid, FieldMode, PathSample, PhysicsSnapshot, ProbeSample, SourcePair, Vec2 } from '../model/types';
 import type { WaveFrame } from './engine';
 import type { FieldProgram } from './field-program';
 import { LIMITS } from '../model/state';
@@ -12,8 +12,9 @@ export type GridSampler = (columns: number, rows: number, mode: FieldMode) => Fi
 export function createWaveFrame(
   snapshot: PhysicsSnapshot, samplePoint: PointSampler, component: ComponentSampler, sampleField: GridSampler,
   fieldProgram?: () => FieldProgram | undefined,
+  fieldBounds: FieldBounds = { ...snapshot.model.bounds, x: 0, y: 0 },
 ): WaveFrame {
-  return Object.freeze({ snapshot, samplePoint, sampleField, fieldProgram, samplePaths() {
+  return Object.freeze({ snapshot, fieldBounds: Object.freeze({ ...fieldBounds }), samplePoint, sampleField, fieldProgram, samplePaths() {
     const { model, probe } = snapshot;
     const common = Math.min(...probe.distances);
     const spacing = (snapshot.steady ? model.wavelength : LIMITS.wavelength[0] * (1 - SOURCE_SPEED_RATIO)) / 24;
@@ -32,13 +33,13 @@ export function createWaveFrame(
   } });
 }
 
-export function fieldGrid(columns: number, rows: number, bounds: { width: number; height: number }, sample: (point: Vec2) => number): FieldGrid {
+export function fieldGrid(columns: number, rows: number, bounds: { width: number; height: number; x?: number; y?: number }, sample: (point: Vec2) => number): FieldGrid {
   if (!Number.isInteger(columns) || !Number.isInteger(rows) || columns < 1 || rows < 1) throw new RangeError('Invalid field dimensions');
   const values = new Float32Array(columns * rows);
   for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
     values[row * columns + column] = sample({
-      x: columns === 1 ? bounds.width / 2 : column / (columns - 1) * bounds.width,
-      y: rows === 1 ? bounds.height / 2 : row / (rows - 1) * bounds.height,
+      x: (bounds.x ?? 0) + (columns === 1 ? bounds.width / 2 : column / (columns - 1) * bounds.width),
+      y: (bounds.y ?? 0) + (rows === 1 ? bounds.height / 2 : row / (rows - 1) * bounds.height),
     });
   }
   return Object.freeze({ columns, rows, values });

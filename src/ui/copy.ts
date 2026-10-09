@@ -5,7 +5,7 @@ export const COPY = {
   play: '재생',
   pause: '일시 정지',
   reset: '처음으로',
-  comparison: '경로 비교',
+  comparison: '경로 펼치기',
   collapse: '경로 접기',
   wavelength: '파장',
   separation: '파원 간격',

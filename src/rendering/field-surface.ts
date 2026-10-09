@@ -46,20 +46,20 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
         quality.reset(); previousKey = ''; previousPalette = ''; gpuMs = 0; lastSampleAt = undefined; backend = nextBackend;
       }
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const physicalWidth = model.bounds.width * transform.scale;
+      const bounds = frame.fieldBounds;
       const maxColumns = useGpu ? 1024 : 640;
       // Background resolution alone changes; SVG geometry and text retain device sharpness.
-      const density = !playing || (useGpu && mode === 'amplitude') ? (useGpu ? dpr : 1) : quality.scale() * (useGpu ? 1 : .5);
-      const columns = Math.max(160, Math.min(maxColumns, Math.round(physicalWidth * Math.min(dpr, density))));
-      const rows = Math.max(2, Math.round(columns * model.bounds.height / model.bounds.width));
-      const key = JSON.stringify([mode, columns, rows, model.bounds, model.wavelength, model.sources, mode === 'wave' ? snapshot.clock.timeSeconds : 0]);
+      const density = !playing || (useGpu && mode === 'amplitude' && snapshot.steady) ? (useGpu ? dpr : 1) : quality.scale() * (useGpu ? 1 : .5);
+      const columns = Math.max(160, Math.min(maxColumns, Math.round(transform.width * Math.min(dpr, density))));
+      const rows = Math.max(2, Math.round(columns * bounds.height / bounds.width));
+      const key = JSON.stringify([mode, columns, rows, bounds, model.wavelength, model.sources, snapshot.steady, mode === 'wave' || !snapshot.steady ? snapshot.clock.timeSeconds : 0]);
       const fieldChanged = key !== previousKey;
       const redraw = fieldChanged || palette !== previousPalette;
       let canvas = cpuCanvas;
       if (useGpu) {
         try {
           gpuMs = gpu!.takeGpuTime() ?? gpuMs;
-          gpu!.render(packet!, { bounds: model.bounds, transform, columns, rows, mode, palette, dpr, redraw });
+          gpu!.render(packet!, { bounds, origin: bounds, transform, columns, rows, mode, palette, dpr, redraw });
           canvas = gpuCanvas;
         } catch (error) {
           failedKernel = packet!.key;
@@ -89,7 +89,7 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
         context.setTransform(dpr, 0, 0, dpr, 0, 0);
         context.fillStyle = '#0d222f'; context.fillRect(0, 0, transform.width, transform.height);
         context.imageSmoothingEnabled = true;
-        context.drawImage(buffer, transform.offsetX, transform.offsetY, physicalWidth, model.bounds.height * transform.scale);
+        context.drawImage(buffer, 0, 0, transform.width, transform.height);
       }
       if (canvas !== activeCanvas) { activeCanvas.replaceWith(canvas); activeCanvas = canvas; }
       const cost = performance.now() - start, time = snapshot.clock.timeSeconds;

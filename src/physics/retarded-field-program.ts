@@ -67,13 +67,13 @@ float fieldValue(vec2 point, bool amplitude) {
   } else {
     phases = vec2(phaseAt(emission(0, point)), phaseAt(emission(1, point))) + uInitialPhases;
   }
+  if (amplitude) return length(vec2(dot(uAmplitudes, cos(phases)), dot(uAmplitudes, sin(phases))));
   return dot(uAmplitudes, sin(phases));
 }`;
 
-export function retardedFieldProgram(model: ModelState, time: number, positions: readonly PositionEvent[], phases: readonly PhaseEvent[], stationary: boolean, steady: boolean, phaseNow: number): FieldProgram | undefined {
+export function retardedFieldProgram(model: ModelState, time: number, positions: readonly PositionEvent[], phases: readonly PhaseEvent[], stationary: boolean, steady: boolean, phaseNow: number, horizon: number): FieldProgram | undefined {
   // Bound both texture size and shader search depth. Oversized histories use the CPU path.
   if (positions.length > 4096 || phases.length > 4096) return undefined;
-  const horizon = Math.hypot(model.bounds.width, model.bounds.height) / model.speed + 1;
   const positionWidth = capacity(positions.length), phaseWidth = capacity(phases.length);
   const trajectory = new Float32Array(positionWidth * 2 * 4), signal = new Float32Array(phaseWidth * 4);
   positions.forEach((event, i) => {

@@ -36,9 +36,9 @@ function source(id: Source['id'], y: number): Source {
 
 export function createModel(): ModelState {
   return Object.freeze({
-    sources: Object.freeze([source('source-1', 0.24), source('source-2', 0.48)] as const),
+    sources: Object.freeze([source('source-1', 0.21), source('source-2', 0.51)] as const),
     probe: Object.freeze({ x: 0.85, y: 0.36 }),
-    wavelength: 0.16,
+    wavelength: 0.15,
     speed: 0.12,
     bounds: Object.freeze({ width: 1.2, height: 0.72 }),
   });
@@ -48,12 +48,10 @@ export function createModel(): ModelState {
 export function updateModel(model: ModelState, action: ModelAction): ModelState {
   switch (action.type) {
     case 'probe': {
-      const x = Number.isFinite(action.position.x)
-        ? clamp(action.position.x, 0, model.bounds.width)
-        : model.probe.x;
-      const y = Number.isFinite(action.position.y)
-        ? clamp(action.position.y, 0, model.bounds.height)
-        : model.probe.y;
+      // P may lie beyond the source apparatus bounds. The UI constrains it using
+      // the visible camera and available comparison length, in geometry/probe-region.
+      const x = Number.isFinite(action.position.x) ? action.position.x : model.probe.x;
+      const y = Number.isFinite(action.position.y) ? action.position.y : model.probe.y;
       if (x === model.probe.x && y === model.probe.y) return model;
       return Object.freeze({ ...model, probe: Object.freeze({ x, y }) });
     }

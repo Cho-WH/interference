@@ -26,7 +26,26 @@ export function createShell(root: HTMLElement) {
             <button id="wave-mode" type="button" aria-pressed="true">${COPY.wave}</button>
             <button id="amplitude-mode" type="button" aria-pressed="false">${COPY.amplitude}</button>
           </div>
-          <button id="comparison-toggle" class="button button-compare" type="button" aria-expanded="false" aria-controls="comparison-region"><span data-label>${COPY.comparison}</span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
+          <div class="toolbar-actions">
+          <button id="comparison-toggle" class="button button-compare" type="button" aria-expanded="false" aria-controls="comparison-region"><svg class="toolbar-icon path-align-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><g class="path-icon-upper"><circle cx="5" cy="7" r="1.5"/><path d="M9 7h11"/></g><g class="path-icon-lower"><circle cx="5" cy="17" r="1.5"/><path d="M9 17h7"/></g></svg><span class="comparison-label"><span class="comparison-label-size" aria-hidden="true">${COPY.comparison}</span><span data-label>${COPY.comparison}</span></span></button>
+          <div id="palette-picker" class="palette-picker">
+            <button id="field-legend" class="field-legend" type="button" aria-expanded="false" aria-controls="palette-options" title="파동 색상 선택">
+              <span class="palette-scale" aria-hidden="true"><span class="palette-scale-labels" data-legend-label><span>−</span><span>0</span><span>+</span></span><span class="palette-swatch" data-palette-swatch></span></span>
+              <svg class="toolbar-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+            </button>
+            <div id="palette-options" class="palette-options" role="group" aria-label="파동 색상 프리셋" hidden></div>
+          </div>
+          <div id="detail-options" class="detail-options">
+            <button id="detail-options-toggle" class="options-trigger" type="button" aria-expanded="false" aria-controls="detail-options-panel" aria-label="상세 옵션" title="상세 옵션"><svg class="toolbar-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3m4 0h9M4 17h9m4 0h3"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg><span class="options-trigger-label">상세 옵션</span></button>
+            <section id="detail-options-panel" class="options-panel" aria-label="상세 옵션" hidden>
+              <div class="options-heading"><strong>상세 옵션</strong><button type="button" data-options-close aria-label="상세 옵션 닫기">×</button></div>
+              <div class="option-row"><button id="change-process-toggle" class="option-toggle" type="button" aria-pressed="false"><span class="toggle-track" aria-hidden="true"></span>파동 변화 과정 생략</button><button class="option-help" type="button" data-option-help aria-label="파동 변화 과정 생략 설명" aria-describedby="change-process-tip" aria-expanded="false">i</button></div>
+              <div id="change-process-tip" class="option-tooltip" role="tooltip" hidden>파장과 간격을 바꿀 때 중간 과정을 생략하고 즉시 최종 상태를 보여 줘요.</div>
+              <div class="option-row path-option"><button id="path-waves-toggle" class="option-toggle" type="button" aria-pressed="true"><span class="toggle-track" aria-hidden="true"></span>경로에 파형 표시</button><button class="option-help" type="button" data-option-help aria-label="경로에 파형 표시 설명" aria-describedby="path-waves-tip" aria-expanded="false">i</button></div>
+              <div id="path-waves-tip" class="option-tooltip" role="tooltip" hidden>펼치기 전에도 파원에서 P까지의 파형을 보여 줘요.</div>
+            </section>
+          </div>
+        </div>
           <div class="source-key" aria-label="파원 색상">
             <span><i class="source-dot source-one" aria-hidden="true"></i>파원 1</span>
             <span><i class="source-dot source-two" aria-hidden="true"></i>파원 2</span>
@@ -40,20 +59,10 @@ export function createShell(root: HTMLElement) {
             <canvas id="wave-field" aria-label="두 파원에서 퍼지는 파동과 간섭">두 파원에서 P까지의 경로 길이는 아래에서 확인할 수 있어요.</canvas>
             <svg id="field-overlay" class="field-overlay" role="group" aria-label="파원과 관측점 조작"></svg>
             <p id="first-use-hint" class="field-hint">${COPY.hint}</p>
+            <p id="probe-boundary-hint" class="field-hint boundary-hint" aria-hidden="true">P는 점선 테두리 안에서 움직여요.</p>
           </div>
           <div id="comparison-region" class="comparison-region" aria-label="두 경로와 P에서의 진동 비교" hidden></div>
           <svg id="comparison-overlay" class="comparison-overlay" role="img" aria-label="두 경로의 길이와 도착점에서의 진동"></svg>
-        </div>
-
-        <div class="field-footer">
-          <div id="palette-picker" class="palette-picker">
-            <button id="field-legend" class="field-legend" type="button" aria-expanded="false" aria-controls="palette-options" title="파동 색상 선택">
-              <span class="palette-swatch" data-palette-swatch aria-hidden="true"></span>
-              <span data-legend-label>${COPY.waveLegend}</span><span aria-hidden="true">▾</span>
-            </button>
-            <div id="palette-options" class="palette-options" role="group" aria-label="파동 색상 프리셋" hidden></div>
-          </div>
-          <span class="probe-key"><span class="probe-key-marker" aria-hidden="true">P</span>관측점</span>
         </div>
 
         </div>
@@ -61,12 +70,12 @@ export function createShell(root: HTMLElement) {
         <div class="parameter-controls" aria-label="파동 조건">
           <div class="parameter">
             <div class="parameter-label"><label for="wavelength">${COPY.wavelength}<span class="quantity-symbol">λ</span></label><output id="wavelength-value" for="wavelength">16.0 cm</output></div>
-            <input id="wavelength" type="range" min="6" max="30" step="0.5" value="16" aria-describedby="wavelength-value" />
+            <input id="wavelength" type="range" min="6" max="30" step="0.5" value="15" aria-describedby="wavelength-value" />
             <div class="range-endpoints" aria-hidden="true"><span>6 cm</span><span>30 cm</span></div>
           </div>
           <div class="parameter">
             <div class="parameter-label"><label for="separation">${COPY.separation}</label><output id="separation-value" for="separation">24.0 cm</output></div>
-            <input id="separation" type="range" min="6" max="54" step="0.5" value="24" aria-describedby="separation-value" />
+            <input id="separation" type="range" min="6" max="54" step="0.5" value="30" aria-describedby="separation-value" />
             <div class="range-endpoints" aria-hidden="true"><span>6 cm</span><span>54 cm</span></div>
           </div>
         </div>
@@ -99,13 +108,11 @@ export function createShell(root: HTMLElement) {
         <details class="help">
           <summary>관찰 도움말</summary>
           <div class="help-content">
-            <p><strong>파동 모습</strong>은 각 위치의 순간 변위예요. <strong>간섭무늬</strong>는 진동하는 크기인 합성 진폭을 보여 줘요.</p>
-            <p><strong>경로 비교</strong>를 열면 두 파원에서 P까지의 길이와 P에서의 진동을 함께 볼 수 있어요. λ는 파장을 뜻해요.</p>
-            <p>두 파원은 같은 진폭, 같은 위상으로 진동해요. 이 화면에서는 거리에 따른 진폭 감소를 생략했어요.</p>
-            <p>파장 조절은 파원에서 새로 만드는 파동에 적용돼요. 변화는 파동과 함께 퍼져요. 이동 중에는 방향에 따라 파동 간격이 달라질 수 있어요.</p>
-            <p>파원을 드래그하는 동안 점선으로 놓을 위치를 표시해요. 손을 떼면 파원이 천천히 이동해요. 일시 정지 중에 지정한 이동은 재생할 때 시작해요.</p>
-            <p>이동 뒤 속빈 작은 점은 P에 도착한 파동의 출발 위치예요. 경로 위의 곡선은 그 선을 따라 각 위치에서 지금 나타나는 변위예요. 변화가 퍼지는 동안에는 같은 거리 표시와 파장 단위 비교를 잠시 숨겨요.</p>
-            <p class="keyboard-help">키보드로 점을 선택한 뒤 방향키로 움직일 수 있어요. Shift를 함께 누르면 더 크게 움직여요.</p>
+            <p><strong>P를 움직여 보세요.</strong> 두 파의 합이 크게 진동하는 곳과 진동하지 않는 곳을 찾아보세요.</p>
+            <p><strong>경로를 펼쳐 비교해 보세요.</strong> 두 파원이 같은 진폭·위상으로 진동하고 변화가 모두 퍼진 뒤, 경로차가 0, λ, 2λ…이면 보강 간섭, λ/2, 3λ/2…이면 상쇄 간섭이 일어나요. λ는 파장이에요.</p>
+            <p><strong>한순간 변위가 0이라고 상쇄 간섭은 아니에요.</strong> P에서 두 파의 합이 계속 0인지 관찰해 보세요.</p>
+            <p><strong>파장이나 파원 간격을 바꿔 보세요.</strong> 간섭무늬에서 진동하지 않는 선의 위치와 간격이 어떻게 달라지나요?</p>
+            <p class="keyboard-help">Tab으로 점을 선택하고 방향키로 움직일 수 있어요.</p>
           </div>
         </details>
       </footer>
@@ -127,10 +134,13 @@ export function createShell(root: HTMLElement) {
     fieldOverlay: element<SVGSVGElement>('#field-overlay'),
     comparisonRegion: element<HTMLElement>('#comparison-region'),
     palettePicker: element<HTMLElement>('#palette-picker'),
+    detailOptions: element<HTMLElement>('#detail-options'),
     controls: {
       play: element<HTMLButtonElement>('#play'),
       reset: element<HTMLButtonElement>('#reset'),
       comparison: element<HTMLButtonElement>('#comparison-toggle'),
+      pathWaves: element<HTMLButtonElement>('#path-waves-toggle'),
+      changeProcess: element<HTMLButtonElement>('#change-process-toggle'),
       wave: element<HTMLButtonElement>('#wave-mode'),
       amplitude: element<HTMLButtonElement>('#amplitude-mode'),
       wavelength: element<HTMLInputElement>('#wavelength'),
@@ -145,6 +155,7 @@ export function createShell(root: HTMLElement) {
       ratio: element<HTMLElement>('#path-ratio'),
       condition: element<HTMLElement>('#interference-condition'),
       hint: element<HTMLElement>('#first-use-hint'),
+      probeHint: element<HTMLElement>('#probe-boundary-hint'),
       announcement: element<HTMLElement>('#announcement'),
       motionHint: element<HTMLElement>('#motion-hint'),
       fieldStatus: element<HTMLElement>('#field-status'),

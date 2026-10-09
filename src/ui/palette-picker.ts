@@ -1,4 +1,5 @@
 import type { FieldMode } from '../model/types';
+import { placeFloatingPanel } from './floating-panel';
 import { FIELD_PALETTES, paletteGradient, type PaletteId } from '../visual/field-palettes';
 
 export function createPalettePicker(root: HTMLElement, onChange: (id: PaletteId) => void) {
@@ -7,6 +8,7 @@ export function createPalettePicker(root: HTMLElement, onChange: (id: PaletteId)
   const label = trigger.querySelector<HTMLElement>('[data-legend-label]')!;
   const swatch = trigger.querySelector<HTMLElement>('[data-palette-swatch]')!;
   let selected: PaletteId = 'contrast', mode: FieldMode = 'wave';
+  let steady = true;
   const abort = new AbortController(), signal = abort.signal;
   panel.innerHTML = `<p class="palette-title">파동 색상</p>${FIELD_PALETTES.map(p => `
     <button type="button" class="palette-option" data-palette="${p.id}" aria-pressed="false">
@@ -16,9 +18,10 @@ export function createPalettePicker(root: HTMLElement, onChange: (id: PaletteId)
     </button>`).join('')}`;
   const options = [...panel.querySelectorAll<HTMLButtonElement>('[data-palette]')];
   function refresh() {
-    label.textContent = mode === 'wave' ? '순간 변위  − ← 0 → +' : '합성 진폭  0 → 최대';
+    const description = mode === 'wave' ? '순간 변위 −, 0, +' : steady ? '합성 진폭 0 → 최대' : '도착 위상 무늬 약 → 강';
+    label.innerHTML = (mode === 'wave' ? ['−', '0', '+'] : ['0', '', '최대']).map(text => `<span>${text}</span>`).join('');
     trigger.dataset.mode = mode;
-    trigger.setAttribute('aria-label', `파동 색상 선택: ${FIELD_PALETTES.find(p => p.id === selected)!.name}. ${label.textContent}`);
+    trigger.setAttribute('aria-label', `파동 색상 선택: ${FIELD_PALETTES.find(p => p.id === selected)!.name}. ${description}`);
     swatch.style.background = paletteGradient(selected, mode);
     for (const button of options) {
       const id = button.dataset.palette as PaletteId;
@@ -33,6 +36,7 @@ export function createPalettePicker(root: HTMLElement, onChange: (id: PaletteId)
   trigger.addEventListener('click', () => {
     if (!panel.hidden) return close();
     panel.hidden = false; trigger.setAttribute('aria-expanded', 'true');
+    placeFloatingPanel(panel, trigger);
     options.find(button => button.dataset.palette === selected)!.focus({ preventScroll: true });
   }, { signal });
   for (const button of options) button.addEventListener('click', () => {
@@ -50,9 +54,12 @@ export function createPalettePicker(root: HTMLElement, onChange: (id: PaletteId)
   }, { signal });
   document.addEventListener('pointerdown', event => { if (!root.contains(event.target as Node)) close(); }, { signal });
   root.addEventListener('focusout', event => { if (!root.contains(event.relatedTarget as Node | null)) close(); }, { signal });
+  const reposition = () => { if (!panel.hidden) placeFloatingPanel(panel, trigger); };
+  window.addEventListener('resize', reposition, { signal });
+  window.addEventListener('scroll', reposition, { signal, capture: true });
   refresh();
   return {
-    update(next: FieldMode) { if (next !== mode) { mode = next; refresh(); } },
+    update(next: FieldMode, nextSteady = true) { if (next !== mode || nextSteady !== steady) { mode = next; steady = nextSteady; refresh(); } },
     destroy() { abort.abort(); },
   };
 }

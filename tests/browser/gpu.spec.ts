@@ -11,8 +11,9 @@ test('GPU fields match CPU reference through edits, motion, retained frames and 
     const canvas = document.createElement('canvas'), renderer = createWebGLField(canvas);
     if (!renderer) return { supported: false, max: 999, mean: 999, error: -1 };
     const gl = canvas.getContext('webgl2')!;
-    const model = createModel(), engine = createRetardedEngine(model);
-    const frames = [engine.read(model.probe)];
+    const model = createModel(), bounds = { x: -.8, y: -.4, width: 2.8, height: 1.52 };
+    const engine = createRetardedEngine(model, bounds);
+    const frames = [engine.read(model.probe), engine.read(model.probe, bounds)];
     engine.advanceTo(1); engine.setWavelength(.06); frames.push(engine.read(model.probe));
     engine.advanceTo(2.8); frames.push(engine.read(model.probe));
     engine.setSourceTargets([{ x: .2, y: .1 }, { x: .6, y: .6 }]);
@@ -20,15 +21,20 @@ test('GPU fields match CPU reference through edits, motion, retained frames and 
     engine.setWavelength(.3);
     engine.setSourceTargets([{ x: .5, y: .33 }, { x: .3, y: .39 }]);
     engine.advanceTo(5.5); frames.push(engine.read(model.probe));
+    frames.push(engine.read(model.probe, bounds, { equilibriumSources: [{ x: .5, y: .33 }, { x: .3, y: .39 }] }));
+    frames.push(engine.read(model.probe, bounds));
+    engine.advanceTo(14); frames.push(engine.read(model.probe, bounds));
     engine.advanceTo(20); frames.push(engine.read(model.probe));
     engine.advanceTo(100000); engine.setWavelength(.06);
     engine.setSourceTargets([{ x: .4, y: .09 }, { x: .4, y: .63 }]);
     engine.advanceTo(100001.8); frames.push(engine.read(model.probe));
+    frames.push(engine.read(model.probe, bounds, { equilibriumSources: [{ x: .4, y: .09 }, { x: .4, y: .63 }] }));
+    engine.settle(); frames.push(engine.read(model.probe, bounds));
     engine.reset(model); frames.push(engine.read(model.probe));
     let max = 0, sum = 0, samples = 0;
-    for (const frame of frames) for (const mode of frame.snapshot.steady ? ['wave', 'amplitude'] : ['wave']) for (const palette of ['contrast', 'water', 'silver']) {
+    for (const frame of frames) for (const mode of ['wave', 'amplitude'] as const) for (const palette of ['contrast', 'water', 'silver']) {
       const columns = 100, rows = 60;
-      renderer.render(frame.fieldProgram()!, { columns, rows, bounds: model.bounds, transform: { width: columns, height: rows, scale: columns / model.bounds.width, offsetX: 0, offsetY: 0 }, dpr: 1, palette, mode, redraw: true });
+      renderer.render(frame.fieldProgram()!, { columns, rows, bounds: frame.fieldBounds, origin: frame.fieldBounds, transform: { width: columns, height: rows, scale: columns / model.bounds.width, offsetX: 0, offsetY: 0 }, dpr: 1, palette, mode, redraw: true });
       const actual = new Uint8Array(columns * rows * 4);
       // Readback is test-only, never used by the application rendering loop.
       gl.readPixels(0, 0, columns, rows, gl.RGBA, gl.UNSIGNED_BYTE, actual);

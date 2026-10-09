@@ -31,24 +31,38 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
     const group = element('g', { class: 'interactive-handle', 'data-handle': id, tabindex: '0', role: 'button', 'aria-label': label, 'aria-keyshortcuts': 'ArrowUp ArrowDown ArrowLeft ArrowRight' });
     group.style.pointerEvents = 'all';
     const hit = element('circle', { r: '24', fill: 'transparent' });
-    const ring = element(probe ? 'rect' : 'circle', probe
-      ? { x: '-13', y: '-13', width: '26', height: '26', rx: '8', fill: '#f9fbfd', stroke: '#fff', 'stroke-width': '2' }
-      : { r: '12', fill: '#102a37', stroke: color, 'stroke-width': '2.5' });
-    const text = element('text', { y: '4.5', 'text-anchor': 'middle', fill: probe ? '#102a37' : color, 'font-size': '12', 'font-weight': '800', 'pointer-events': 'none' });
-    text.textContent = glyph;
     const focus = element('circle', { class: 'handle-focus', r: '20', fill: 'none', stroke: '#fff', 'stroke-dasharray': '3 3', 'stroke-width': '1.5' });
-    group.append(hit, focus, ring, text);
+    const ring = element('circle', { r: 12, fill: '#102a37', 'fill-opacity': probe ? .30 : 1, stroke: color, 'stroke-width': 2.5 });
+    group.append(hit, focus, ring);
+    if (probe) {
+      // Share the source handle's circle; a translucent interior keeps the field
+      // visible while the small center dot marks the exact observation point.
+      const center = element('circle', { r: 1.8, fill: '#f6faf8', stroke: '#12212b', 'stroke-width': 1.2, 'pointer-events': 'none' });
+      const text = element('text', { x: 19, y: 5, fill: '#f6faf8', 'font-style': 'italic', 'font-size': 15, 'font-weight': 400, 'paint-order': 'stroke', stroke: '#12212b', 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'pointer-events': 'none', 'data-probe-label': '' });
+      text.style.fontFamily = 'Cambria, Georgia, serif';
+      text.textContent = glyph;
+      group.append(center, text);
+    } else {
+      const text = element('text', { y: '4.5', 'text-anchor': 'middle', fill: color, 'font-size': '12', 'font-weight': '800', 'pointer-events': 'none' });
+      text.textContent = glyph;
+      group.append(text);
+    }
     return group;
   }
   const sources = [handle('source-1', '파원 1. 위아래 방향키로 파원 간격 조절', '1', colors[0]), handle('source-2', '파원 2. 위아래 방향키로 파원 간격 조절', '2', colors[1])];
   const probe = handle('probe', '관측점 P. 방향키로 이동', 'P', '#fff', true);
+  const probeLabel = probe.querySelector<SVGTextElement>('[data-probe-label]')!;
+  const gap = handle('source-gap', '두 파원 간격. 위로 끌면 넓어지고 아래로 끌면 좁아져요.', '↕', '#e9f6f3');
+  const gapLabel = element('text', { y: '31', 'text-anchor': 'middle', fill: '#fff', 'font-size': 10, 'paint-order': 'stroke', stroke: '#102a37', 'stroke-width': 3, 'pointer-events': 'none' });
+  gapLabel.textContent = '간격'; gap.append(gapLabel);
+  const probeBounds = element('path', { fill: 'none', stroke: '#e5f2ef', 'stroke-width': 1, 'stroke-dasharray': '3 6', 'stroke-linecap': 'round', 'pointer-events': 'none', 'data-probe-bounds': '', visibility: 'hidden' });
   const origins = colors.map((color, i) => element('circle', { r: 5, fill: '#102a37', stroke: color, 'stroke-width': 2, 'data-emission-origin': `source-${i + 1}`, 'pointer-events': 'none' }));
   const targets = colors.map((color, i) => element('circle', { r: 15, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-dasharray': '4 3', 'data-source-target': `source-${i + 1}`, 'pointer-events': 'none' }));
-  svg.append(pathGroup, scaleGroup, ...origins, ...targets, ...sources, probe);
+  svg.append(probeBounds, pathGroup, scaleGroup, ...origins, ...targets, ...sources, gap, probe);
   return {
     rate: surface.rate,
     presented: surface.presented,
-    render(frame: WaveFrame, mode: FieldMode, transform: FieldTransform, paletteId: PaletteId, playing: boolean, targetPositions?: SourcePair<Vec2>) {
+    render(frame: WaveFrame, mode: FieldMode, transform: FieldTransform, paletteId: PaletteId, playing: boolean, targetPositions?: SourcePair<Vec2>, probeOutline?: readonly Vec2[]) {
       const { snapshot } = frame;
       surface.render(frame, mode, transform, paletteId, playing);
       svg.setAttribute('data-distance-scale', String(transform.scale));
@@ -59,7 +73,19 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
       svg.setAttribute('data-wavelength-pixels', String(snapshot.model.wavelength * transform.scale));
       svg.setAttribute('viewBox', `0 0 ${transform.width} ${transform.height}`);
       const p = toScreen(snapshot.model.probe, transform);
+      probeBounds.setAttribute('visibility', probeOutline ? 'visible' : 'hidden');
+      if (probeOutline) probeBounds.setAttribute('d', probeOutline.map((point, i) => {
+        const q = toScreen(point, transform); return `${i ? 'L' : 'M'}${q.x},${q.y}`;
+      }).join(' ') + 'Z');
+      const gapPoint = toScreen({ x: snapshot.model.sources[0].position.x, y: snapshot.model.bounds.height / 2 }, transform);
+      gap.setAttribute('transform', `translate(${gapPoint.x - 40},${gapPoint.y})`);
+      const closeSources = (snapshot.model.sources[1].position.y - snapshot.model.sources[0].position.y) * transform.scale < 32;
+      gap.setAttribute('visibility', closeSources ? 'visible' : 'hidden');
+      gap.setAttribute('tabindex', closeSources ? '0' : '-1');
       probe.setAttribute('transform', `translate(${p.x},${p.y})`);
+      const labelOnLeft = p.x > transform.width - 37;
+      probeLabel.setAttribute('x', labelOnLeft ? '-19' : '19');
+      probeLabel.setAttribute('text-anchor', labelOnLeft ? 'end' : 'start');
       snapshot.model.sources.forEach((source, i) => {
         const s = toScreen(source.position, transform);
         const origin = toScreen(snapshot.probe.origins[i], transform);
