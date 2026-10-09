@@ -209,10 +209,19 @@ test('overlapping source hit areas pick the nearest source center', async ({ pag
   await page.setViewportSize({width:390,height:844});
   await page.goto('/');
   await page.locator('#separation').fill('6');
+  // Range input updates the model immediately; SVG positions update on the next frame.
+  // Read drag coordinates only once the visible source separation is actually 6 cm.
+  await expect.poll(() => page.evaluate(() => {
+    const a = document.querySelector('[data-handle="source-1"]')!.getBoundingClientRect();
+    const b = document.querySelector('[data-handle="source-2"]')!.getBoundingClientRect();
+    const scale = Number(document.querySelector('#field-overlay')!.getAttribute('data-distance-scale'));
+    return (b.y - a.y) / scale;
+  })).toBeCloseTo(.06, 5);
   const source = page.locator('[data-handle="source-1"]');
   const box = await source.boundingBox();
   await page.mouse.move(box!.x + box!.width/2, box!.y + box!.height/2);
   await page.mouse.down();
+  await expect(source).toBeFocused();
   await page.mouse.move(box!.x + box!.width/2, box!.y + box!.height/2 - 18, {steps:4});
   await page.mouse.up();
   expect(Number(await page.locator('#separation').inputValue())).toBeGreaterThan(6);
