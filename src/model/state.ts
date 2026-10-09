@@ -1,4 +1,4 @@
-import type { ModelState, Source, SourcePair, Vec2 } from './types';
+import type { Bounds, ModelState, Source, SourcePair, Vec2 } from './types';
 
 export const LIMITS = Object.freeze({
   wavelength: Object.freeze([0.06, 0.3] as const),
@@ -15,10 +15,20 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+const SOURCE_X = 0.4;
+
+/** All positions available to the separation control, independent of its current value. */
+export function sourcePositionExtremes(bounds: Bounds): readonly Vec2[] {
+  return [
+    { x: SOURCE_X, y: bounds.height / 2 - LIMITS.separation[1] / 2 },
+    { x: SOURCE_X, y: bounds.height / 2 + LIMITS.separation[1] / 2 },
+  ];
+}
+
 function source(id: Source['id'], y: number): Source {
   return Object.freeze({
     id,
-    position: Object.freeze({ x: 0.4, y }),
+    position: Object.freeze({ x: SOURCE_X, y }),
     amplitude: 0.01,
     initialPhase: 0,
   });
@@ -59,8 +69,8 @@ export function updateModel(model: ModelState, action: ModelAction): ModelState 
       const center = model.bounds.height / 2;
       const positions = [center - separation / 2, center + separation / 2] as const;
       const sources: SourcePair<Source> = Object.freeze([
-        Object.freeze({ ...model.sources[0], position: Object.freeze({ x: 0.4, y: positions[0] }) }),
-        Object.freeze({ ...model.sources[1], position: Object.freeze({ x: 0.4, y: positions[1] }) }),
+        Object.freeze({ ...model.sources[0], position: Object.freeze({ x: SOURCE_X, y: positions[0] }) }),
+        Object.freeze({ ...model.sources[1], position: Object.freeze({ x: SOURCE_X, y: positions[1] }) }),
       ]);
       return Object.freeze({ ...model, sources });
     }

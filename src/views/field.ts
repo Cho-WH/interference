@@ -23,7 +23,7 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement) {
   let pixels: ImageData | undefined;
   const pathGroup = element('g', { 'aria-hidden': 'true' });
   const paths = colors.map((color, i) => {
-    const line = element('line', { stroke: color, 'stroke-width': '1.8', 'stroke-dasharray': i ? '7 4' : 'none', opacity: '.9' });
+    const line = element('line', { 'data-spatial-path': `source-${i + 1}`, stroke: color, 'stroke-width': '1.8', 'stroke-dasharray': i ? '7 4' : 'none', opacity: '.9' });
     pathGroup.append(line);
     return line;
   });
@@ -62,6 +62,8 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement) {
       const pixelWidth = Math.round(transform.width * dpr);
       const pixelHeight = Math.round(transform.height * dpr);
       if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) { canvas.width = pixelWidth; canvas.height = pixelHeight; }
+      svg.setAttribute('data-distance-scale', String(transform.scale));
+      svg.setAttribute('data-wavelength-pixels', String(snapshot.model.wavelength * transform.scale));
       svg.setAttribute('viewBox', `0 0 ${transform.width} ${transform.height}`);
       // The sampler owns the physical values; this view only maps them to colors.
       if (grid !== previousGrid || mode !== previousMode) {

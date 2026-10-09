@@ -133,3 +133,88 @@ test('desktop dragging updates probe and source separation without replacing sel
   await assertCorrespondence(page);
   await page.screenshot({ path: 'test-results/desktop-comparison.png', fullPage: true });
 });
+
+async function inspectPixelScales(page: Page) {
+  return page.evaluate(() => {
+    function length(selector: string) {
+      const line = document.querySelector<SVGLineElement>(selector)!;
+      const matrix = line.getScreenCTM()!;
+      const a = new DOMPoint(line.x1.baseVal.value, line.y1.baseVal.value).matrixTransform(matrix);
+      const b = new DOMPoint(line.x2.baseVal.value, line.y2.baseVal.value).matrixTransform(matrix);
+      return Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    const field = document.querySelector('#field-overlay')!;
+    const comparison = document.querySelector('[data-view="comparison"]')!;
+    const mark = document.querySelector<SVGPathElement>('[data-wavelength-mark]')!;
+    return {
+      lengths: ['source-1', 'source-2'].map(id => [length(`[data-spatial-path="${id}"]`), length(`[data-path-baseline="${id}"]`)]),
+      fieldScale: Number(field.getAttribute('data-distance-scale')),
+      comparisonScale: Number(comparison.getAttribute('data-distance-scale')),
+      fieldWavelength: Number(field.getAttribute('data-wavelength-pixels')),
+      markerWavelength: mark.getTotalLength() - 12,
+    };
+  });
+}
+function expectMatchingPixels(measurement: Awaited<ReturnType<typeof inspectPixelScales>>) {
+  for (const [spatial, unfolded] of measurement.lengths) expect(unfolded).toBeCloseTo(spatial, 4);
+  expect(measurement.comparisonScale).toBe(measurement.fieldScale);
+  expect(measurement.markerWavelength).toBeCloseTo(measurement.fieldWavelength, 3);
+}
+
+test('spatial and comparison pixels match through unfolding, movement, inputs and resize', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '일시 정지', exact: true }).click();
+  const initialScale = Number(await page.locator('#field-overlay').getAttribute('data-distance-scale'));
+  await page.getByRole('button', { name: '경로 비교', exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector('[data-view="comparison"]')?.getAttribute('data-progress')) > .1);
+  expectMatchingPixels(await inspectPixelScales(page));
+  await expect(page.locator(comparison)).toHaveAttribute('data-progress', '1');
+  expectMatchingPixels(await inspectPixelScales(page));
+  await page.locator('[data-handle="probe"]').focus();
+  for (let i = 0; i < 15; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.locator('#wavelength').fill('24');
+  await page.locator('#separation').fill('54');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const moved = await inspectPixelScales(page);
+  expectMatchingPixels(moved);
+  expect(moved.fieldScale).toBe(initialScale);
+  for (const viewport of [{width:390,height:844}, {width:360,height:800}, {width:320,height:740}]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expectMatchingPixels(await inspectPixelScales(page));
+  }
+});
+
+test('expanded scenes, result and sliders remain in the viewport on laptop and phone', async ({ page }) => {
+  for (const viewport of [{width:1366,height:768},{width:390,height:844},{width:360,height:800}]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await openComparison(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const boxes = await page.evaluate(() => ['#field','#comparison-region','#wavelength','#separation','#interference-condition'].map(selector => {
+      const box = document.querySelector(selector)!.getBoundingClientRect();
+      return {selector, top:box.top,bottom:box.bottom,left:box.left,right:box.right,viewHeight:innerHeight,viewWidth:innerWidth};
+    }));
+    for (const box of boxes) {
+      expect(box.top, box.selector).toBeGreaterThanOrEqual(0);
+      expect(box.bottom, box.selector).toBeLessThanOrEqual(box.viewHeight);
+      expect(box.left, box.selector).toBeGreaterThanOrEqual(0);
+      expect(box.right, box.selector).toBeLessThanOrEqual(box.viewWidth);
+    }
+  }
+});
+
+test('overlapping source hit areas pick the nearest source center', async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  await page.locator('#separation').fill('6');
+  const source = page.locator('[data-handle="source-1"]');
+  const box = await source.boundingBox();
+  await page.mouse.move(box!.x + box!.width/2, box!.y + box!.height/2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width/2, box!.y + box!.height/2 - 18, {steps:4});
+  await page.mouse.up();
+  expect(Number(await page.locator('#separation').inputValue())).toBeGreaterThan(6);
+  await expect(source).toBeFocused();
+});

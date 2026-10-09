@@ -1,7 +1,6 @@
-import type { Bounds, FieldTransform, SourcePair, Vec2 } from '../model/types';
+import type { Bounds, FieldTransform, Vec2 } from '../model/types';
 
-export function createFieldTransform(bounds: Bounds, width: number, height: number): FieldTransform {
-  const scale = Math.min(width / bounds.width, height / bounds.height);
+export function createFieldTransform(bounds: Bounds, width: number, height: number, scale = Math.min(width / bounds.width, height / bounds.height)): FieldTransform {
   return {
     scale,
     offsetX: (width - bounds.width * scale) / 2,
@@ -29,26 +28,44 @@ export type ComparisonLayout = Readonly<{
   compact: boolean;
 }>;
 
+/** Fixed layout reserves the entire allowed range, not the current P distance. */
+function comparisonColumns(width: number) {
+  return { startX: width < 600 ? 22 : 30, pointX: width - 30, gap: 32 };
+}
+
+export function maximumPathLength(bounds: Bounds, sourceExtremes: readonly Vec2[]): number {
+  const corners = [{ x: 0, y: 0 }, { x: bounds.width, y: 0 },
+    { x: 0, y: bounds.height }, { x: bounds.width, y: bounds.height }];
+  return Math.max(...sourceExtremes.flatMap(source => corners.map(point =>
+    Math.hypot(point.x - source.x, point.y - source.y))));
+}
+
+/** One pixels-per-meter value owns both the spatial field and unfolded paths. */
+export function createSceneTransform(
+  bounds: Bounds, sourceExtremes: readonly Vec2[], width: number, fieldHeight: number,
+): FieldTransform {
+  const { startX, pointX, gap } = comparisonColumns(width);
+  const scale = Math.min(width / bounds.width, fieldHeight / bounds.height,
+    Math.max(1, pointX - startX - gap) / maximumPathLength(bounds, sourceExtremes));
+  return createFieldTransform(bounds, width, fieldHeight, scale);
+}
+
 export function computeComparisonLayout(
   width: number,
   fieldHeight: number,
-  distances: SourcePair<number>,
+  distanceScale: number,
   amplitude: number,
 ): ComparisonLayout {
-  const compact = width < 600;
-  const startX = compact ? 26 : 38;
-  const pointX = width - (compact ? 40 : 58);
-  const availableLength = Math.max(1, pointX - startX - (compact ? 42 : 66));
-  const longestDistance = Math.max(...distances);
-  const componentAmplitudePx = 24;
+  const { startX, pointX } = comparisonColumns(width);
+  const componentAmplitudePx = 20;
   return {
     startX,
     pointX,
-    rowZeros: [fieldHeight + 80, fieldHeight + 170, fieldHeight + 268],
-    distanceScale: longestDistance > 0 ? availableLength / longestDistance : 1,
+    rowZeros: [fieldHeight + 65, fieldHeight + 141, fieldHeight + 222],
+    distanceScale,
     displacementScale: amplitude > 0 ? componentAmplitudePx / amplitude : 1,
     componentAmplitudePx,
-    compact,
+    compact: width < 600,
   };
 }
 
@@ -59,21 +76,20 @@ export type PathPlacement = Readonly<{
   displacementScale: number;
 }>;
 
-/** Move and rotate a path as a whole; a shared scale preserves length ratios. */
+/** Rigid translation/rotation: the field distance scale never changes during unfolding. */
 export function interpolatePathPlacement(
   source: Vec2,
   probe: Vec2,
   target: Vec2,
   progress: number,
-  initialDistanceScale: number,
-  finalDistanceScale: number,
+  distanceScale: number,
   displacementScale: number,
 ): PathPlacement {
   const p = Math.max(0, Math.min(1, progress));
   return {
     origin: { x: source.x + (target.x - source.x) * p, y: source.y + (target.y - source.y) * p },
     angle: Math.atan2(probe.y - source.y, probe.x - source.x) * (1 - p),
-    distanceScale: initialDistanceScale + (finalDistanceScale - initialDistanceScale) * p,
+    distanceScale,
     displacementScale,
   };
 }

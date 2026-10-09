@@ -1,10 +1,10 @@
 import '../styles.css';
-import { createModel, updateModel } from '../model/state';
+import { createModel, updateModel, sourcePositionExtremes } from '../model/state';
 import type { ModelAction } from '../model/state';
 import type { FieldGrid, ViewState } from '../model/types';
 import { createClock } from '../runtime/clock';
 import { createSnapshot, createFieldSampler, samplePaths } from '../physics/waves';
-import { createFieldTransform } from '../geometry/layout';
+import { createSceneTransform } from '../geometry/layout';
 import { createFieldView } from '../views/field';
 import { createComparisonView } from '../views/comparison';
 import { COPY, formatDistance as cm, formatAmplitude } from '../ui/copy';
@@ -23,7 +23,7 @@ const comparisonView = createComparisonView(shell.overlay);
 shell.fieldOverlay.style.pointerEvents = 'auto';
 shell.fieldOverlay.style.touchAction = 'none';
 let width = 0, fieldHeight = 0;
-let transform = createFieldTransform(model.bounds, 1, 1);
+let transform = createSceneTransform(model.bounds, sourcePositionExtremes(model.bounds), 1, 1);
 let animationFrame = 0;
 let progress = 0;
 let lastAnimationTime: number | null = null;
@@ -97,7 +97,8 @@ function render(now: number) {
   shell.comparisonRegion.hidden = !visible;
   shell.stage.classList.toggle('comparison-open', visible);
   shell.overlay.style.display = visible ? 'block' : 'none';
-  shell.overlay.setAttribute('viewBox', `0 0 ${width} ${fieldHeight + (visible ? 340 : 0)}`);
+  const comparisonHeight = visible ? shell.comparisonRegion.getBoundingClientRect().height : 0;
+  shell.overlay.setAttribute('viewBox', `0 0 ${width} ${fieldHeight + comparisonHeight}`);
   if (dirty || view.playing || progress !== target || visible) {
     const snapshot = createSnapshot(model, frame);
     const columns = Math.min(420, Math.max(160, Math.round(model.bounds.width * transform.scale / 2)));
@@ -109,7 +110,6 @@ function render(now: number) {
     }
     fieldView.render(snapshot, grid, view.fieldMode, transform);
     if (visible) {
-      const comparisonHeight = shell.comparisonRegion.getBoundingClientRect().height || 340;
       const easedProgress = progress * progress * (3 - 2 * progress);
       comparisonView.render(snapshot, samplePaths(snapshot), { width, fieldHeight, comparisonHeight, progress: easedProgress, fieldTransform: transform });
     }
@@ -151,7 +151,7 @@ const unbindInput = bindFieldInput(shell.fieldOverlay, {
 const resizeObserver = new ResizeObserver(() => {
   const rect = shell.field.getBoundingClientRect();
   width = rect.width; fieldHeight = rect.height;
-  transform = createFieldTransform(model.bounds, width, fieldHeight);
+  transform = createSceneTransform(model.bounds, sourcePositionExtremes(model.bounds), width, fieldHeight);
   requestRender();
 });
 resizeObserver.observe(shell.field);

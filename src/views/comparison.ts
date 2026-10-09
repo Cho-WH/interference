@@ -48,6 +48,8 @@ export function createComparisonView(svg: SVGSVGElement) {
     createDisplacementMarker(settledLayer, SUM_COLOR, 'sum'),
   ];
   const zeroLabels = markers.map(() => svgText(settledLayer, comparisonCopy.zero, { 'font-size': 10, fill: 'var(--muted, #84939b)' }));
+  const wavelengthMark = svgElement('path', { stroke: 'var(--muted, #687c85)', fill: 'none', 'stroke-width': 1, 'data-wavelength-mark': '' }, annotationLayer);
+  const wavelengthLabel = svgText(annotationLayer, '', { 'font-size': 11, 'text-anchor': 'middle', fill: 'var(--muted, #687c85)' });
   const sumLabel = svgText(annotationLayer, comparisonCopy.sum, { fill: SUM_COLOR, 'font-weight': 700 });
 
   return {
@@ -55,7 +57,7 @@ export function createComparisonView(svg: SVGSVGElement) {
       const { model, probe } = snapshot;
       const progress = Math.max(0, Math.min(1, options.progress));
       const amplitude = Math.max(model.sources[0].amplitude, model.sources[1].amplitude);
-      const layout = computeComparisonLayout(options.width, options.fieldHeight, probe.distances, amplitude);
+      const layout = computeComparisonLayout(options.width, options.fieldHeight, options.fieldTransform.scale, amplitude);
       const { startX, pointX, rowZeros, displacementScale } = layout;
       const commonDistance = Math.min(...probe.distances);
       const longIndex = probe.distances[1] > probe.distances[0] ? 1 : 0;
@@ -68,6 +70,7 @@ export function createComparisonView(svg: SVGSVGElement) {
         'data-time-seconds': snapshot.clock.timeSeconds,
         'data-temporal-phase': snapshot.clock.temporalPhase,
         'data-distance-scale': layout.distanceScale,
+        'data-wavelength-pixels': model.wavelength * layout.distanceScale,
         'data-displacement-scale': displacementScale,
         'data-long-source': hasExtraPath ? model.sources[longIndex].id : 'equal',
       });
@@ -76,11 +79,18 @@ export function createComparisonView(svg: SVGSVGElement) {
       setAttributes(settledLayer, { visibility: settled ? 'visible' : 'hidden' });
       setAttributes(pointPanel, { x: pointX - 20, y: options.fieldHeight + 42, width: 40, height: Math.max(1, options.comparisonHeight - 58) });
       setAttributes(title, { x: options.width - 20, y: options.fieldHeight + 23 });
-      setAttributes(sumLabel, { x: startX, y: rowZeros[2] - 38 });
-      setAttributes(pathDifference, { x: startX, y: rowZeros[2] + 36 });
+      setAttributes(sumLabel, { x: startX, y: rowZeros[2] - 29 });
+      setAttributes(pathDifference, { x: startX, y: options.fieldHeight + options.comparisonHeight - 8 });
       pathDifference.textContent = `${comparisonCopy.pathDifference} ${formatDistance(Math.abs(probe.signedPathDifference))}`;
       setAttributes(sameDistanceKey, { cx: startX + 4, cy: options.fieldHeight + 19, visibility: settled && hasExtraPath ? 'visible' : 'hidden' });
       setAttributes(sameDistanceLabel, { x: startX + 14, y: options.fieldHeight + 23, 'text-anchor': 'start', visibility: settled && hasExtraPath ? 'visible' : 'hidden' });
+
+      const wavelengthPixels = model.wavelength * layout.distanceScale;
+      const markEnd = pointX - 30, markStart = markEnd - wavelengthPixels;
+      const markY = options.fieldHeight + options.comparisonHeight - 11;
+      setAttributes(wavelengthMark, { d: `M${markStart},${markY - 3}v6m0,-3h${wavelengthPixels}m0,-3v6`, 'data-pixel-length': wavelengthPixels });
+      setAttributes(wavelengthLabel, { x: (markStart + markEnd) / 2, y: markY - 7 });
+      wavelengthLabel.textContent = `λ ${formatDistance(model.wavelength)}`;
 
       const probeScreen = toScreen(model.probe, options.fieldTransform);
       const placements = model.sources.map((source, index) => interpolatePathPlacement(
@@ -89,7 +99,6 @@ export function createComparisonView(svg: SVGSVGElement) {
         { x: startX, y: rowZeros[index] },
         progress,
         options.fieldTransform.scale,
-        layout.distanceScale,
         displacementScale,
       ));
 
@@ -116,8 +125,8 @@ export function createComparisonView(svg: SVGSVGElement) {
           'data-end-displacement': displacement,
           'data-zero-y': rowZeros[index],
         });
-        setAttributes(row.sourceLabel, { x: startX, y: rowZeros[index] - 38 });
-        setAttributes(row.distanceLabel, { x: pointX - 30, y: rowZeros[index] - 38 });
+        setAttributes(row.sourceLabel, { x: startX, y: rowZeros[index] - 28 });
+        setAttributes(row.distanceLabel, { x: pointX - 30, y: rowZeros[index] - 28 });
         row.distanceLabel.textContent = formatDistance(distance);
         setAttributes(row.extra, { visibility: hasExtraPath && index === longIndex ? 'visible' : 'hidden', opacity: progress });
         setLine(row.extra, placePathPoint(commonDistance, 0, placement), baselineEnd);
