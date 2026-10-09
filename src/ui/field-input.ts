@@ -7,9 +7,11 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
   getModel(): ModelState;
   moveProbe(point: Vec2): void;
   setSeparation(value: number): void;
+  getTargetSeparation(): number;
+  previewSeparation(value: number | null): void;
   announce(): void;
 }) {
-  let active: { target: Target; pointerId: number } | null = null;
+  let active: { target: Target; pointerId: number; preview: number | null } | null = null;
   const abort = new AbortController();
   const signal = abort.signal;
   const sourceSign = (target: Target) => target === 'source-1' ? -1 : 1;
@@ -17,7 +19,11 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
     const rect = svg.getBoundingClientRect();
     const point = toWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top }, options.getTransform());
     if (target === 'probe') options.moveProbe(point);
-    else options.setSeparation(2 * sourceSign(target) * (point.y - options.getModel().bounds.height / 2));
+    else {
+      const value = 2 * sourceSign(target) * (point.y - options.getModel().bounds.height / 2);
+      if (active) active.preview = value;
+      options.previewSeparation(value);
+    }
   }
   svg.addEventListener('pointerdown', (event) => {
     if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
@@ -33,25 +39,38 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
       if (distance < nearest) { nearest = distance; target = candidate.id; }
     }
     const element = svg.querySelector<SVGElement>(`[data-handle="${target}"]`);
-    active = { target, pointerId: event.pointerId };
+    active = { target, pointerId: event.pointerId, preview: null };
     svg.setPointerCapture(event.pointerId);
     (element ?? svg.querySelector<SVGElement>('[data-handle="probe"]'))?.focus({ preventScroll: true });
-    move(event, target);
+    if (target === 'probe') move(event, target);
+    else options.previewSeparation(options.getTargetSeparation());
     event.preventDefault();
   }, { signal });
   svg.addEventListener('pointermove', (event) => {
     if (active?.pointerId === event.pointerId) move(event, active.target);
   }, { signal });
-  function finish(event: PointerEvent) {
+  function finish(event: PointerEvent, commit: boolean) {
     if (active?.pointerId !== event.pointerId) return;
+    const preview = active.preview;
     active = null;
+    options.previewSeparation(null);
+    if (commit && preview !== null) options.setSeparation(preview);
     if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
     options.announce();
   }
-  svg.addEventListener('pointerup', finish, { signal });
-  svg.addEventListener('pointercancel', finish, { signal });
-  svg.addEventListener('lostpointercapture', () => { active = null; }, { signal });
+  svg.addEventListener('pointerup', event => finish(event, true), { signal });
+  svg.addEventListener('pointercancel', event => finish(event, false), { signal });
+  svg.addEventListener('lostpointercapture', () => { active = null; options.previewSeparation(null); }, { signal });
+  function cancel() {
+    const id = active?.pointerId;
+    active = null; options.previewSeparation(null);
+    if (id !== undefined && svg.hasPointerCapture(id)) svg.releasePointerCapture(id);
+  }
   svg.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && active) {
+      cancel();
+      event.preventDefault(); return;
+    }
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     const target = (event.target as SVGElement).dataset.handle as Target | undefined;
     if (!target) return;
@@ -59,9 +78,9 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
     const delta = { x: event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0, y: event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0 };
     const model = options.getModel();
     if (target === 'probe') options.moveProbe({ x: model.probe.x + delta.x, y: model.probe.y + delta.y });
-    else options.setSeparation(model.sources[1].position.y - model.sources[0].position.y + 2 * sourceSign(target) * delta.y);
+    else if (delta.y !== 0) options.setSeparation(options.getTargetSeparation() + 2 * sourceSign(target) * delta.y);
     options.announce();
     event.preventDefault();
   }, { signal });
-  return () => abort.abort();
+  return { cancel, destroy: () => abort.abort() };
 }

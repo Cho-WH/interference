@@ -40,14 +40,19 @@ export function createShell(root: HTMLElement) {
             <canvas id="wave-field" aria-label="두 파원에서 퍼지는 파동과 간섭">두 파원에서 P까지의 경로 길이는 아래에서 확인할 수 있어요.</canvas>
             <svg id="field-overlay" class="field-overlay" role="group" aria-label="파원과 관측점 조작"></svg>
             <p id="first-use-hint" class="field-hint">${COPY.hint}</p>
-
           </div>
           <div id="comparison-region" class="comparison-region" aria-label="두 경로와 P에서의 진동 비교" hidden></div>
           <svg id="comparison-overlay" class="comparison-overlay" role="img" aria-label="두 경로의 길이와 도착점에서의 진동"></svg>
         </div>
 
         <div class="field-footer">
-          <div id="field-legend" class="field-legend" aria-label="파동 색상의 의미">${COPY.waveLegend}</div>
+          <div id="palette-picker" class="palette-picker">
+            <button id="field-legend" class="field-legend" type="button" aria-expanded="false" aria-controls="palette-options" title="파동 색상 선택">
+              <span class="palette-swatch" data-palette-swatch aria-hidden="true"></span>
+              <span data-legend-label>${COPY.waveLegend}</span><span aria-hidden="true">▾</span>
+            </button>
+            <div id="palette-options" class="palette-options" role="group" aria-label="파동 색상 프리셋" hidden></div>
+          </div>
           <span class="probe-key"><span class="probe-key-marker" aria-hidden="true">P</span>관측점</span>
         </div>
 
@@ -65,6 +70,8 @@ export function createShell(root: HTMLElement) {
             <div class="range-endpoints" aria-hidden="true"><span>6 cm</span><span>54 cm</span></div>
           </div>
         </div>
+        <p id="motion-hint" class="motion-hint" hidden></p>
+        <p id="field-status" class="field-status" hidden></p>
         <div class="observation-bar">
           <div class="distance-readouts" aria-label="P까지의 거리와 경로차">
             <div class="readout readout-source-one">
@@ -95,6 +102,9 @@ export function createShell(root: HTMLElement) {
             <p><strong>파동 모습</strong>은 각 위치의 순간 변위예요. <strong>간섭무늬</strong>는 진동하는 크기인 합성 진폭을 보여 줘요.</p>
             <p><strong>경로 비교</strong>를 열면 두 파원에서 P까지의 길이와 P에서의 진동을 함께 볼 수 있어요. λ는 파장을 뜻해요.</p>
             <p>두 파원은 같은 진폭, 같은 위상으로 진동해요. 이 화면에서는 거리에 따른 진폭 감소를 생략했어요.</p>
+            <p>파장 조절은 파원에서 새로 만드는 파동에 적용돼요. 변화는 파동과 함께 퍼져요. 이동 중에는 방향에 따라 파동 간격이 달라질 수 있어요.</p>
+            <p>파원을 드래그하는 동안 점선으로 놓을 위치를 표시해요. 손을 떼면 파원이 천천히 이동해요. 일시 정지 중에 지정한 이동은 재생할 때 시작해요.</p>
+            <p>이동 뒤 속빈 작은 점은 P에 도착한 파동의 출발 위치예요. 경로 위의 곡선은 그 선을 따라 각 위치에서 지금 나타나는 변위예요. 변화가 퍼지는 동안에는 같은 거리 표시와 파장 단위 비교를 잠시 숨겨요.</p>
             <p class="keyboard-help">키보드로 점을 선택한 뒤 방향키로 움직일 수 있어요. Shift를 함께 누르면 더 크게 움직여요.</p>
           </div>
         </details>
@@ -116,6 +126,7 @@ export function createShell(root: HTMLElement) {
     overlay: element<SVGSVGElement>('#comparison-overlay'),
     fieldOverlay: element<SVGSVGElement>('#field-overlay'),
     comparisonRegion: element<HTMLElement>('#comparison-region'),
+    palettePicker: element<HTMLElement>('#palette-picker'),
     controls: {
       play: element<HTMLButtonElement>('#play'),
       reset: element<HTMLButtonElement>('#reset'),
@@ -133,9 +144,10 @@ export function createShell(root: HTMLElement) {
       pathDifference: element<HTMLElement>('#path-difference'),
       ratio: element<HTMLElement>('#path-ratio'),
       condition: element<HTMLElement>('#interference-condition'),
-      legend: element<HTMLElement>('#field-legend'),
       hint: element<HTMLElement>('#first-use-hint'),
       announcement: element<HTMLElement>('#announcement'),
+      motionHint: element<HTMLElement>('#motion-hint'),
+      fieldStatus: element<HTMLElement>('#field-status'),
     },
     destroy() { root.replaceChildren(); },
   };

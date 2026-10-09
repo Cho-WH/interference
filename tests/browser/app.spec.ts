@@ -88,6 +88,8 @@ test('equal, half-wave and full-wave differences preserve geometry and cancellat
   await expect.poll(async () => Number(await page.locator('[data-marker="source-1"]').getAttribute('data-displacement'))).not.toBe(firstComponent);
   expect(Math.abs(Number(await page.locator('[data-marker="sum"]').getAttribute('data-displacement')))).toBeLessThan(1e-10);
   await page.locator('#separation').fill('32');
+  await expect(page.locator('#field-overlay')).toHaveAttribute('data-steady', 'false');
+  await expect(page.locator('#field-overlay')).toHaveAttribute('data-steady', 'true', { timeout: 15000 });
   await page.locator('[data-handle="probe"]').focus();
   for (let i = 0; i < 2; i++) await page.keyboard.press('Shift+ArrowUp');
   await expect(page.locator('#path-ratio')).toHaveText('1.00λ');
@@ -209,8 +211,7 @@ test('overlapping source hit areas pick the nearest source center', async ({ pag
   await page.setViewportSize({width:390,height:844});
   await page.goto('/');
   await page.locator('#separation').fill('6');
-  // Range input updates the model immediately; SVG positions update on the next frame.
-  // Read drag coordinates only once the visible source separation is actually 6 cm.
+  // A committed target is reached gradually; pick coordinates after actual arrival.
   await expect.poll(() => page.evaluate(() => {
     const a = document.querySelector('[data-handle="source-1"]')!.getBoundingClientRect();
     const b = document.querySelector('[data-handle="source-2"]')!.getBoundingClientRect();

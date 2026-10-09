@@ -63,6 +63,7 @@ export function createComparisonView(svg: SVGSVGElement) {
       const longIndex = probe.distances[1] > probe.distances[0] ? 1 : 0;
       const shortIndex = longIndex === 0 ? 1 : 0;
       const hasExtraPath = Math.abs(probe.signedPathDifference) > 1e-10;
+      const canCompare = snapshot.steady;
       const settled = progress >= 1 - 1e-7;
       const annotationOpacity = Math.max(0, (progress - 0.6) / 0.4);
       setAttributes(root, {
@@ -73,6 +74,7 @@ export function createComparisonView(svg: SVGSVGElement) {
         'data-wavelength-pixels': model.wavelength * layout.distanceScale,
         'data-displacement-scale': displacementScale,
         'data-long-source': hasExtraPath ? model.sources[longIndex].id : 'equal',
+        'data-steady': snapshot.steady,
       });
       setAttributes(annotationLayer, { opacity: annotationOpacity });
       // Correspondence markers appear once both paths occupy their comparison rows.
@@ -81,20 +83,22 @@ export function createComparisonView(svg: SVGSVGElement) {
       setAttributes(title, { x: options.width - 20, y: options.fieldHeight + 23 });
       setAttributes(sumLabel, { x: startX, y: rowZeros[2] - 29 });
       setAttributes(pathDifference, { x: startX, y: options.fieldHeight + options.comparisonHeight - 8 });
-      pathDifference.textContent = `${comparisonCopy.pathDifference} ${formatDistance(Math.abs(probe.signedPathDifference))}`;
-      setAttributes(sameDistanceKey, { cx: startX + 4, cy: options.fieldHeight + 19, visibility: settled && hasExtraPath ? 'visible' : 'hidden' });
-      setAttributes(sameDistanceLabel, { x: startX + 14, y: options.fieldHeight + 23, 'text-anchor': 'start', visibility: settled && hasExtraPath ? 'visible' : 'hidden' });
+      pathDifference.textContent = canCompare ? `${comparisonCopy.pathDifference} ${formatDistance(Math.abs(probe.signedPathDifference))}` : '각 위치의 현재 파형';
+      setAttributes(sameDistanceKey, { cx: startX + 4, cy: options.fieldHeight + 19, visibility: settled && hasExtraPath && canCompare ? 'visible' : 'hidden' });
+      setAttributes(sameDistanceLabel, { x: startX + 14, y: options.fieldHeight + 23, 'text-anchor': 'start', visibility: settled && hasExtraPath && canCompare ? 'visible' : 'hidden' });
 
       const wavelengthPixels = model.wavelength * layout.distanceScale;
       const markEnd = pointX - 30, markStart = markEnd - wavelengthPixels;
       const markY = options.fieldHeight + options.comparisonHeight - 11;
       setAttributes(wavelengthMark, { d: `M${markStart},${markY - 3}v6m0,-3h${wavelengthPixels}m0,-3v6`, 'data-pixel-length': wavelengthPixels });
       setAttributes(wavelengthLabel, { x: (markStart + markEnd) / 2, y: markY - 7 });
+      setAttributes(wavelengthMark, { visibility: canCompare ? 'visible' : 'hidden' });
+      setAttributes(wavelengthLabel, { visibility: canCompare ? 'visible' : 'hidden' });
       wavelengthLabel.textContent = `λ ${formatDistance(model.wavelength)}`;
 
       const probeScreen = toScreen(model.probe, options.fieldTransform);
-      const placements = model.sources.map((source, index) => interpolatePathPlacement(
-        toScreen(source.position, options.fieldTransform),
+      const placements = model.sources.map((_, index) => interpolatePathPlacement(
+        toScreen(probe.origins[index], options.fieldTransform),
         probeScreen,
         { x: startX, y: rowZeros[index] },
         progress,
@@ -128,7 +132,10 @@ export function createComparisonView(svg: SVGSVGElement) {
         setAttributes(row.sourceLabel, { x: startX, y: rowZeros[index] - 28 });
         setAttributes(row.distanceLabel, { x: pointX - 30, y: rowZeros[index] - 28 });
         row.distanceLabel.textContent = formatDistance(distance);
-        setAttributes(row.extra, { visibility: hasExtraPath && index === longIndex ? 'visible' : 'hidden', opacity: progress });
+        setAttributes(row.extra, { visibility: canCompare && hasExtraPath && index === longIndex ? 'visible' : 'hidden', opacity: progress });
+        const pastOrigin = Math.hypot(probe.origins[index].x - model.sources[index].position.x, probe.origins[index].y - model.sources[index].position.y) > 1e-6;
+        setAttributes(row.start, { fill: pastOrigin ? 'white' : SOURCE_COLORS[index], stroke: SOURCE_COLORS[index] });
+        setAttributes(row.startNumber, { fill: pastOrigin ? SOURCE_COLORS[index] : 'white' });
         setLine(row.extra, placePathPoint(commonDistance, 0, placement), baselineEnd);
         const pointY = rowZeros[index] - displacement * displacementScale;
         setLine(connections[index], { x: startX + distance * layout.distanceScale, y: pointY }, { x: pointX, y: pointY });
@@ -147,8 +154,8 @@ export function createComparisonView(svg: SVGSVGElement) {
       const shortY = rowZeros[shortIndex] - probe.componentDisplacements[shortIndex] * displacementScale;
       setLine(sameDistanceGuide, { x: commonX, y: shortY }, { x: commonX, y: auxiliaryY });
       setPoint(auxiliaryPoint, { x: commonX, y: auxiliaryY });
-      setAttributes(auxiliaryPoint, { stroke: SOURCE_COLORS[longIndex], visibility: hasExtraPath ? 'visible' : 'hidden', 'data-source-id': model.sources[longIndex].id, 'data-distance': commonDistance, 'data-displacement': commonDisplacement });
-      setAttributes(sameDistanceGuide, { visibility: hasExtraPath ? 'visible' : 'hidden' });
+      setAttributes(auxiliaryPoint, { stroke: SOURCE_COLORS[longIndex], visibility: hasExtraPath && canCompare ? 'visible' : 'hidden', 'data-source-id': model.sources[longIndex].id, 'data-distance': commonDistance, 'data-displacement': commonDisplacement });
+      setAttributes(sameDistanceGuide, { visibility: hasExtraPath && canCompare ? 'visible' : 'hidden' });
       setLine(sumZero, { x: startX, y: rowZeros[2] }, { x: pointX + 12, y: rowZeros[2] });
       markers[2].render(pointX, rowZeros[2], probe.resultantDisplacement, displacementScale, model.sources[0].amplitude + model.sources[1].amplitude);
       zeroLabels.forEach((label, index) => setAttributes(label, { x: pointX + 17, y: rowZeros[index] + 4 }));

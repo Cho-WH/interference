@@ -1,26 +1,15 @@
-import type { FieldGrid, FieldMode, FieldTransform, PhysicsSnapshot } from '../model/types';
+import type { FieldMode, FieldTransform, SourcePair, Vec2 } from '../model/types';
+import type { WaveFrame } from '../physics/engine';
 import { toScreen } from '../geometry/layout';
 
 import { formatDistance } from '../ui/copy';
 import { svgElement as element } from '../visual/svg';
+import type { PaletteId } from '../visual/field-palettes';
+import { createFieldSurface } from '../rendering/field-surface';
 const colors = ['#51dfce', '#ffb16b'] as const;
-function palette(value: number, mode: FieldMode): [number, number, number] {
-  const v = Math.min(1, Math.max(mode === 'wave' ? -1 : 0, value));
-  const low = mode === 'wave' && v < 0 ? [107, 104, 192] : [59, 202, 190];
-  const t = Math.abs(v) ** .82;
-  return [0, 1, 2].map((i) => Math.round([13, 34, 47][i] * (1 - t) + low[i] * t)) as [number, number, number];
-}
-const palettes = {
-  wave: Array.from({ length: 513 }, (_, i) => palette(i / 256 - 1, 'wave')),
-  amplitude: Array.from({ length: 513 }, (_, i) => palette(i / 512, 'amplitude')),
-};
 
-export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement) {
-  const context = canvas.getContext('2d', { alpha: false });
-  if (!context) throw new Error('Canvas 2D is required.');
-  const buffer = document.createElement('canvas');
-  const bufferContext = buffer.getContext('2d', { alpha: false })!;
-  let pixels: ImageData | undefined;
+export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, invalidate: () => void) {
+  const surface = createFieldSurface(canvas, invalidate);
   const pathGroup = element('g', { 'aria-hidden': 'true' });
   const paths = colors.map((color, i) => {
     const line = element('line', { 'data-spatial-path': `source-${i + 1}`, stroke: color, 'stroke-width': '1.8', 'stroke-dasharray': i ? '7 4' : 'none', opacity: '.9' });
@@ -53,44 +42,34 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement) {
   }
   const sources = [handle('source-1', '파원 1. 위아래 방향키로 파원 간격 조절', '1', colors[0]), handle('source-2', '파원 2. 위아래 방향키로 파원 간격 조절', '2', colors[1])];
   const probe = handle('probe', '관측점 P. 방향키로 이동', 'P', '#fff', true);
-  svg.append(pathGroup, scaleGroup, ...sources, probe);
-  let previousGrid: FieldGrid | undefined;
-  let previousMode: FieldMode | undefined;
+  const origins = colors.map((color, i) => element('circle', { r: 5, fill: '#102a37', stroke: color, 'stroke-width': 2, 'data-emission-origin': `source-${i + 1}`, 'pointer-events': 'none' }));
+  const targets = colors.map((color, i) => element('circle', { r: 15, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-dasharray': '4 3', 'data-source-target': `source-${i + 1}`, 'pointer-events': 'none' }));
+  svg.append(pathGroup, scaleGroup, ...origins, ...targets, ...sources, probe);
   return {
-    render(snapshot: PhysicsSnapshot, grid: FieldGrid, mode: FieldMode, transform: FieldTransform) {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const pixelWidth = Math.round(transform.width * dpr);
-      const pixelHeight = Math.round(transform.height * dpr);
-      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) { canvas.width = pixelWidth; canvas.height = pixelHeight; }
+    rate: surface.rate,
+    presented: surface.presented,
+    render(frame: WaveFrame, mode: FieldMode, transform: FieldTransform, paletteId: PaletteId, playing: boolean, targetPositions?: SourcePair<Vec2>) {
+      const { snapshot } = frame;
+      surface.render(frame, mode, transform, paletteId, playing);
       svg.setAttribute('data-distance-scale', String(transform.scale));
+      svg.setAttribute('data-time-seconds', String(snapshot.clock.timeSeconds));
+      svg.setAttribute('data-moving', String(snapshot.moving));
+      svg.setAttribute('data-steady', String(snapshot.steady));
+      svg.setAttribute('data-field-mode', mode);
       svg.setAttribute('data-wavelength-pixels', String(snapshot.model.wavelength * transform.scale));
       svg.setAttribute('viewBox', `0 0 ${transform.width} ${transform.height}`);
-      // The sampler owns the physical values; this view only maps them to colors.
-      if (grid !== previousGrid || mode !== previousMode) {
-        if (buffer.width !== grid.columns || buffer.height !== grid.rows || !pixels) {
-          buffer.width = grid.columns; buffer.height = grid.rows;
-          pixels = bufferContext.createImageData(grid.columns, grid.rows);
-        }
-        const palette = palettes[mode];
-        for (let i = 0; i < grid.values.length; i++) {
-          const index = Math.max(0, Math.min(512, Math.round(mode === 'wave' ? grid.values[i] * 256 + 256 : grid.values[i] * 512)));
-          const color = palette[index];
-          pixels.data[i * 4] = color[0]; pixels.data[i * 4 + 1] = color[1]; pixels.data[i * 4 + 2] = color[2]; pixels.data[i * 4 + 3] = 255;
-        }
-        bufferContext.putImageData(pixels, 0, 0);
-        previousGrid = grid; previousMode = mode;
-      }
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.fillStyle = '#0d222f'; context.fillRect(0, 0, transform.width, transform.height);
-      context.imageSmoothingEnabled = true;
-      context.drawImage(buffer, transform.offsetX, transform.offsetY, snapshot.model.bounds.width * transform.scale, snapshot.model.bounds.height * transform.scale);
       const p = toScreen(snapshot.model.probe, transform);
       probe.setAttribute('transform', `translate(${p.x},${p.y})`);
       snapshot.model.sources.forEach((source, i) => {
         const s = toScreen(source.position, transform);
+        const origin = toScreen(snapshot.probe.origins[i], transform);
+        const target = targetPositions ? toScreen(targetPositions[i], transform) : s;
         sources[i].setAttribute('transform', `translate(${s.x},${s.y})`);
-        for (const [key, value] of Object.entries({ x1: s.x, y1: s.y, x2: p.x, y2: p.y })) paths[i].setAttribute(key, String(value));
-        labels[i].group.setAttribute('transform', `translate(${s.x + (p.x - s.x) * .46},${s.y + (p.y - s.y) * .46 + (i ? 18 : -18)})`);
+        sources[i].setAttribute('data-world-y', String(source.position.y));
+        for (const [key, value] of Object.entries({ cx: origin.x, cy: origin.y, visibility: Math.hypot(origin.x - s.x, origin.y - s.y) > 2 ? 'visible' : 'hidden' })) origins[i].setAttribute(key, String(value));
+        for (const [key, value] of Object.entries({ cx: target.x, cy: target.y, visibility: targetPositions ? 'visible' : 'hidden' })) targets[i].setAttribute(key, String(value));
+        for (const [key, value] of Object.entries({ x1: origin.x, y1: origin.y, x2: p.x, y2: p.y })) paths[i].setAttribute(key, String(value));
+        labels[i].group.setAttribute('transform', `translate(${origin.x + (p.x - origin.x) * .46},${origin.y + (p.y - origin.y) * .46 + (i ? 18 : -18)})`);
         labels[i].text.textContent = `${i + 1} · ${formatDistance(snapshot.probe.distances[i])}`;
       });
       const sx = transform.offsetX + 20, sy = transform.offsetY + snapshot.model.bounds.height * transform.scale - 20;
@@ -98,6 +77,6 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement) {
       scaleLine.setAttribute('d', `M${sx},${sy - 4}v8m0,-4h${length}m0,-4v8`);
       scaleText.setAttribute('x', String(sx + length / 2)); scaleText.setAttribute('y', String(sy - 8));
     },
-    destroy() { svg.replaceChildren(); },
+    destroy() { surface.destroy(); svg.replaceChildren(); },
   };
 }

@@ -1,23 +1,21 @@
-import type { ClockFrame } from '../model/types';
-
-const TAU = 2 * Math.PI;
+type ClockFrame = Readonly<{ timeSeconds: number }>;
 
 export type SimulationClock = Readonly<{
-  tick: (nowMs: number, frequency: number) => ClockFrame;
-  setPlaying: (playing: boolean, nowMs: number, frequency: number) => ClockFrame;
+  tick: (nowMs: number) => ClockFrame;
+  setPlaying: (playing: boolean, nowMs: number) => ClockFrame;
   getFrame: () => ClockFrame;
   reset: (nowMs?: number) => ClockFrame;
 }>;
 
-/** One clock owns elapsed simulation time and accumulated temporal phase. */
+/** One clock owns simulation time. Source phase and history belong to the engine. */
 export function createClock(): SimulationClock {
-  let frame: ClockFrame = Object.freeze({ timeSeconds: 0, temporalPhase: 0 });
+  let frame: ClockFrame = Object.freeze({ timeSeconds: 0 });
   let previousNow: number | null = null;
   let playing = true;
 
-  function tick(nowMs: number, frequency: number): ClockFrame {
-    if (!Number.isFinite(nowMs) || !Number.isFinite(frequency) || frequency < 0) {
-      throw new RangeError('The clock needs a finite timestamp and nonnegative frequency.');
+  function tick(nowMs: number): ClockFrame {
+    if (!Number.isFinite(nowMs)) {
+      throw new RangeError('The clock needs a finite timestamp.');
     }
     if (previousNow === null) {
       previousNow = nowMs;
@@ -28,14 +26,13 @@ export function createClock(): SimulationClock {
     if (playing && elapsedSeconds > 0) {
       frame = Object.freeze({
         timeSeconds: frame.timeSeconds + elapsedSeconds,
-        temporalPhase: frame.temporalPhase + TAU * frequency * elapsedSeconds,
       });
     }
     return frame;
   }
 
-  function setPlaying(nextPlaying: boolean, nowMs: number, frequency: number): ClockFrame {
-    tick(nowMs, frequency);
+  function setPlaying(nextPlaying: boolean, nowMs: number): ClockFrame {
+    tick(nowMs);
     playing = nextPlaying;
     return frame;
   }
@@ -44,7 +41,7 @@ export function createClock(): SimulationClock {
     if (nowMs !== undefined && !Number.isFinite(nowMs)) {
       throw new RangeError('The clock needs a finite reset timestamp.');
     }
-    frame = Object.freeze({ timeSeconds: 0, temporalPhase: 0 });
+    frame = Object.freeze({ timeSeconds: 0 });
     previousNow = nowMs ?? null;
     return frame;
   }
