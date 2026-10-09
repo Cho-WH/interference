@@ -1,0 +1,14 @@
+export type Vec2 = Readonly<{ x: number; y: number }>;
+export type SourceId = 'source-1' | 'source-2';
+export type SourcePair<T> = readonly [T, T];
+export type Source = Readonly<{ id: SourceId; position: Vec2; amplitude: number; initialPhase: number }>;
+export type Bounds = Readonly<{ width: number; height: number }>;
+export type ModelState = Readonly<{ sources: SourcePair<Source>; probe: Vec2; wavelength: number; speed: number; bounds: Bounds }>;
+export type ClockFrame = Readonly<{ timeSeconds: number; temporalPhase: number }>;
+export type ProbeSample = Readonly<{ distances: SourcePair<number>; componentDisplacements: SourcePair<number>; resultantDisplacement: number; resultantAmplitude: number; signedPathDifference: number; phaseDifference: number; interference: 'constructive' | 'destructive' | 'intermediate' }>;
+export type PhysicsSnapshot = Readonly<{ model: ModelState; clock: ClockFrame; waveNumber: number; frequency: number; probe: ProbeSample }>;
+export type PathSample = Readonly<{ sourceId: SourceId; distances: readonly number[]; displacements: readonly number[] }>;
+export type FieldMode = 'wave' | 'amplitude';
+export type FieldGrid = Readonly<{ columns: number; rows: number; values: Float32Array }>;
+export type FieldTransform = Readonly<{ scale: number; offsetX: number; offsetY: number; width: number; height: number }>;
+export type ViewState = Readonly<{ playing: boolean; fieldMode: FieldMode; comparisonOpen: boolean; interacted: boolean }>;
