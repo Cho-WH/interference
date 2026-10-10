@@ -4,6 +4,10 @@
 
 관측점 P를 움직이고 두 경로를 같은 축척으로 펼쳐 길이와 진동을 비교한다. 현재는 일정 진폭의 지연 위상 엔진을 사용한다. 엄밀한 2차원 수면 시뮬레이션은 아니며 진폭 감소·반사·장애물·회절은 생략한다.
 
+공개 사이트: **[파동의 간섭](https://cho-wh.github.io/interference/)**
+
+`main`에 푸시하면 GitHub Actions에서 단위 검사·빌드·브라우저 검사를 수행하고, 통과한 `dist/`를 GitHub Pages에 배포한다. PR에서는 검사만 수행한다. 수동 재배포는 Actions의 `Verify and deploy Pages`에서 실행할 수 있다.
+
 ## 실행
 
 Node.js 22.12 이상에서 실행한다.
