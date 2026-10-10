@@ -49,6 +49,7 @@ export function createTeacherStage(container: HTMLElement, options: {
   let width = 0, height = 0, cueId = '', sizeKey = '', reduced = false, currentPose: TeacherPose | undefined;
   let lastLayout: CueSpec['layout'] | undefined, previousPose: TeacherPose | undefined, lastTransition: CueSpec['transition'] = 'none';
   let reducedSpatial = false, full = false, lastNow = 0, lastSpeed: MotionSpeed = 'normal';
+  let fieldWasVisible = false, unfoldFromVisibleField = false;
   function measure() {
     width = Math.max(280, container.clientWidth || 1280); height = Math.max(400, container.clientHeight || 664);
     container.style.setProperty('--stage-width', width + 'px');
@@ -58,7 +59,7 @@ export function createTeacherStage(container: HTMLElement, options: {
   function prepare(snapshot: PhysicsSnapshot, cue: CueSpec, state: StageState) {
     measure(); lastNow = state.now; lastSpeed = state.motionSpeed ?? 'normal';
     const resized = sizeKey !== width + ':' + height, nextReduced = Boolean(state.reducedMotion), changed = cue.id !== cueId;
-    if (changed) { reducedSpatial = false; full = false; }
+    if (changed) { reducedSpatial = false; full = false; unfoldFromVisibleField = fieldWasVisible; }
     const kind = full ? 'path-comparison' : cue.layout;
     if (changed || resized || reduced !== nextReduced) {
       const target = teacherPose(snapshot, width, height, kind);
@@ -103,8 +104,13 @@ export function createTeacherStage(container: HTMLElement, options: {
         analysisSteady: frame.snapshot.steady, probeSteady: frame.snapshot.probe.interference !== 'transient' };
       const visible = state.visible ?? resolveVisibility(cue, validity);
       const prediction = cue.revealPolicy !== 'explain';
-      // Prediction masks apply before any transition, including the fading old field.
-      const showBackground = !prediction && pose.backgroundOpacity > .001 && (visible.has('field') || transitioning);
+      // Only a previously observed wave field may withdraw during unfolding;
+      // jumping into a prediction still masks the old field immediately.
+      const withdrawingField = transitioning && lastTransition === 'unfold-in-place' &&
+        unfoldFromVisibleField && cue.revealPolicy === 'predict-sum' && cue.fieldMode === 'wave';
+      const showBackground = pose.backgroundOpacity > .001 &&
+        (visible.has('field') || (!prediction && transitioning) || withdrawingField);
+      fieldWasVisible = showBackground;
       background.hidden = !showBackground;
       background.style.opacity = String(showBackground ? pose.backgroundOpacity : 0);
       background.style.transform = 'translateY(' + pose.backgroundLift + 'px)';

@@ -12,7 +12,11 @@ export function resolveVisibility(cue: CueSpec, validity: FrameValidity, overrid
     if (override[id] === false) result.delete(id);
   }
   if (cue.revealPolicy === 'predict-from-paths') predictionMask.forEach(id => result.delete(id));
-  if (cue.revealPolicy !== 'explain') (['resultant', 'local-probe-result', 'rule', 'field'] as const).forEach(id => result.delete(id));
+  if (cue.revealPolicy !== 'explain') (['resultant', 'local-probe-result', 'rule'] as const).forEach(id => result.delete(id));
+  // Spatial observation may retain the wave field before unfolding. The
+  // amplitude map and all dedicated result displays remain masked.
+  if (cue.revealPolicy !== 'explain' && !(cue.revealPolicy === 'predict-sum' &&
+    cue.fieldMode === 'wave' && ['field', 'spatial-paths'].includes(cue.layout))) result.delete('field');
   if (!validity.analysisSteady) analysisInformation.forEach(id => result.delete(id));
   if (!validity.probeSteady) result.delete('rule');
   return result;

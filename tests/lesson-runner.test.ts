@@ -4,6 +4,7 @@ import { createLessonRunner } from '../src/lesson/runner';
 import { createExperimentController } from '../src/app/experiment-controller';
 import { DEFAULT_LESSON, EXPERIMENTS } from '../src/lesson/default-lesson';
 import { flattenLesson } from '../src/lesson/types';
+import { resolveVisibility } from '../src/lesson/reveal-policy';
 
 function setup() {
   let now = 0, moving = false;
@@ -89,6 +90,17 @@ test('fixed analysis validity is independent of camera and is invalidated by new
   assert.ok(s.experiment.generation > generation);
 });
 
+test('spatial prediction permits wave observation but never the amplitude map or dedicated sum', () => {
+  const cue = DEFAULT_LESSON.scenes[5].cues[1];
+  const validity = { generation: 0, timeSeconds: 0, analysisSteady: true, probeSteady: true };
+  const override = { field: true, resultant: true, 'local-probe-result': true };
+  assert.equal(resolveVisibility(cue, validity, override).has('field'), true);
+  assert.equal(resolveVisibility({ ...cue, fieldMode: 'amplitude' }, validity, override).has('field'), false);
+  assert.equal(resolveVisibility({ ...cue, layout: 'parallel' }, validity, override).has('field'), false);
+  for (const id of ['resultant', 'local-probe-result'] as const)
+    assert.equal(resolveVisibility(cue, validity, override).has(id), false);
+});
+
 test('B starts after folding the current manual P and stops before unfolding and prediction', () => {
   const s = setup(); s.time(1000); s.experiment.setPlaying(false, 1000);
   const manualP = { x: .73, y: .32 };
@@ -106,7 +118,8 @@ test('B starts after folding the current manual P and stops before unfolding and
   s.transition(); s.runner.next();
   assert.equal(s.runner.state.cue.id, 's6-b-space', 'next completes only the moving P');
   for (const next of ['s6-b-parallel', 's6-b-predict']) {
-    for (const answer of ['field', 'local-probe-result', 'resultant'] as const) {
+    assert.equal(s.runner.visible.has('field'), next === 's6-b-parallel', 'keep the spatial background until unfolding');
+    for (const answer of ['local-probe-result', 'resultant'] as const) {
       s.runner.setOverride(answer, true); assert.equal(s.runner.visible.has(answer), false);
     }
     assert.equal(s.runner.visible.has('path-1'), true);

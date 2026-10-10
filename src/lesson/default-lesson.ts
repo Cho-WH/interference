@@ -32,7 +32,7 @@ function cue(id: string, label: string, question: string, next: string | undefin
 const waiting = (holdCueId: string) => ({ scope: 'analysis-steady' as const, holdCueId });
 
 export const DEFAULT_LESSON: LessonSpec = {
-  schemaVersion: 1, id: 'path-difference-lesson', revision: 4,
+  schemaVersion: 1, id: 'path-difference-lesson', revision: 5,
   engineContract: 'wave-frame-v1', modelProfile: 'equal-phase-equal-amplitude-v1',
   title: '두 파동이 모두 도착하는데, 왜 P는 진동하지 않을까?',
   motionSpeed: 'normal', experiments: EXPERIMENTS,
@@ -93,8 +93,8 @@ export const DEFAULT_LESSON: LessonSpec = {
           teacherNotes: '교사가 옮긴 P도 그대로 유지하며 접어 돌아갑니다. 다음 동작에서만 조건 B를 불러옵니다.' }),
       cue('s6-b-space', 'P를 B로 이동', 'P를 옮기면 두 경로의 길이는 어떻게 바뀌나요?', '새 경로 펼치기',
         { experimentContextId: 'B', layout: 'spatial-paths', transition: 'move-probe',
-          visible: paths, revealPolicy: 'predict-sum', allowedInputs: [],
-          teacherNotes: 'P를 옮겨도 두 경로 위 파형을 유지합니다. 합성 진동과 간섭무늬는 가리고, 이동이 끝나면 관찰할 시간을 둡니다.' }),
+          visible: ['field', ...paths], revealPolicy: 'predict-sum', allowedInputs: [],
+          teacherNotes: 'P를 옮기는 동안과 이동 후에도 파동 배경과 두 경로를 유지합니다. 합성 변위 표시는 가리고, 새 경로 펼치기를 누를 때 배경이 물러납니다.' }),
       cue('s6-b-parallel', 'B의 두 경로 펼치기', '방금 본 두 경로를 같은 축척으로 비교해 보세요.', '거리와 파장 비교',
         { experimentContextId: 'B', layout: 'parallel', transition: 'unfold-in-place',
           visible: parallel, revealPolicy: 'predict-sum', allowedInputs: [],

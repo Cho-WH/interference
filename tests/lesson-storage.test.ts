@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_LESSON } from '../src/lesson/default-lesson';
 import { validateLesson } from '../src/lesson/validation';
-import { parseLesson, saveLesson, loadLesson } from '../src/lesson/storage';
+import { parseLesson, saveLesson, loadLesson, LESSON_STORAGE_KEY } from '../src/lesson/storage';
 import { createLessonDraft } from '../src/lesson/editor-model';
 import { flattenLesson } from '../src/lesson/types';
 import { teachingCopy } from '../src/lesson/teaching-copy';
@@ -70,4 +70,15 @@ test('failed import/storage validation preserves a previous saved lesson', () =>
   saveLesson(DEFAULT_LESSON, storage);
   assert.throws(() => saveLesson({ ...DEFAULT_LESSON, schemaVersion: 2 } as any, storage));
   assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
+});
+
+test('untouched saved revision 4 receives the spatial B background, but teacher edits survive', () => {
+  const legacy = structuredClone(DEFAULT_LESSON); legacy.revision = 4;
+  legacy.scenes[0].cues[1].teacherNotes = 'P는 관측 위치입니다. 옆의 보라색 점이 그곳의 순간 변위를 나타냅니다. 두 주기 이상 관찰합니다.';
+  const b = legacy.scenes[5].cues[1]; b.visible = b.visible.filter(id => id !== 'field');
+  b.teacherNotes = 'P를 옮겨도 두 경로 위 파형을 유지합니다. 합성 진동과 간섭무늬는 가리고, 이동이 끝나면 관찰할 시간을 둡니다.';
+  const storage = { getItem: (key: string) => key === LESSON_STORAGE_KEY ? JSON.stringify(legacy) : null } as Storage;
+  assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
+  legacy.scenes[0].cues[0].question = '교사가 수정한 질문';
+  assert.deepEqual(loadLesson(storage), legacy);
 });

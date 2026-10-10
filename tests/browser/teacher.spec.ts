@@ -106,11 +106,16 @@ test('B returns to the current spatial P, moves while paused, then unfolds befor
   await expect(page.locator(shell)).toHaveAttribute('data-transitioning', 'true');
   const movingY = Number(await page.locator('.teacher-stage').getAttribute('data-observation-y'));
   expect(movingY).toBeGreaterThan(.0975); expect(movingY).toBeLessThanOrEqual(.238125);
-  await expect(page.locator('.teacher-background')).toBeHidden();
+  await expect(page.locator('.teacher-background')).toBeVisible();
   await expect(page.locator('[data-marker="local-probe-result"]')).toBeHidden();
   await at(page, 's6-b-space');
+  await expect(page.locator('.teacher-background')).toBeVisible();
   const spatial = await geometry(page);
-  await advance(page, '새 경로 펼치기', 's6-b-parallel');
+  await page.getByRole('button', { name: '새 경로 펼치기', exact: true }).click();
+  await expect(page.locator(shell)).toHaveAttribute('data-cue', 's6-b-parallel');
+  await expect(page.locator('.teacher-background')).toBeVisible();
+  await at(page, 's6-b-parallel');
+  await expect(page.locator('.teacher-background')).toBeHidden();
   const parallel = await geometry(page);
   parallel.forEach((row, i) => {
     expect(row.scale).toBeCloseTo(spatial[i].scale, 7);
