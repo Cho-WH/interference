@@ -8,6 +8,14 @@
 
 계산·입력·표현·자원 경계를 분리하며, 새 엔진은 `WaveEngine`/`WaveFrame` 계약을 구현한다. 선택적 GPU 패킷과 캐시 힌트가 없어도 CPU 경로로 표시할 수 있다.
 
+## 교사 수업 모드 v2
+
+[설계 v2](teacher-mode-design-v2.md)의 단계 1~3에 해당하는 핵심 연출, 전체 수업, 편집·저장을 구현했다. [구현 문서](teacher-mode.md)에 기능과 책임을 정리한다. 첫 회전 후 대기와 다음 클릭의 공통 확대를 분리하고, 8장면에서 예제 A/B/C를 전파 이력과 연결한다.
+
+관련 단위 검사: `experiment-controller.test.ts`, `lesson-runner.test.ts`, `lesson-storage.test.ts`, `teacher-layout.test.ts`, `teacher-observation.test.ts`. 공개 가림·예제 직접 이동·편집 리허설·반응형과 표시 일치는 `browser/teacher.spec.ts`에서 다룬다. 공통 뷰와 명령 경계를 바꾸었으므로 일반 모드 브라우저 검사도 영향 범위다.
+
+수치 애니메이터와 SVG/CSS가 기존 프레임 루프에서 자세를 읽는다. 물리 시계와 독립된 교체 가능한 표현 계층을 유지하며 외부 런타임 의존성은 추가하지 않았다. 실제 교실 투사·학습 효과·Safari와 실제 모바일 기기는 후속 확인 대상이다. 브라우저 자동 검사와 실제 UI 점검은 완료 보고에서 실행 여부를 구별한다.
+
 ## 변경 영역별 확인
 
 | 변경 영역 | 확인할 계약 | 관련 검사 |

@@ -56,12 +56,18 @@ export function createDisplacementMarker(parent: SVGElement, color: string, labe
 
   return {
     group,
-    render(x: number, zeroY: number, displacement: number, displacementScale: number, maxAmplitude: number) {
+    render(x: number, zeroY: number, displacement: number, displacementScale: number, maxAmplitude: number,
+      appearance?: Readonly<{ scale: number; pointRadius?: number; barWidth?: number }>) {
+      const scale = appearance?.scale ?? 1;
       const pointY = zeroY - displacement * displacementScale;
       setLine(range, { x, y: zeroY - maxAmplitude * displacementScale }, { x, y: zeroY + maxAmplitude * displacementScale });
-      setLine(zero, { x: x - 12, y: zeroY }, { x: x + 12, y: zeroY });
+      setLine(zero, { x: x - 12 * scale, y: zeroY }, { x: x + 12 * scale, y: zeroY });
       setLine(bar, { x, y: zeroY }, { x, y: pointY });
       setPoint(dot, { x, y: pointY });
+      setAttributes(range, { 'stroke-width': 13 * scale });
+      setAttributes(zero, { 'stroke-width': 1.2 * scale });
+      setAttributes(bar, { 'stroke-width': (appearance?.barWidth ?? 5) * scale });
+      setAttributes(dot, { r: (appearance?.pointRadius ?? (label === 'sum' ? 7 : 6)) * scale, 'stroke-width': 2 * scale });
       setAttributes(group, { 'data-zero-y': zeroY, 'data-displacement': displacement, 'data-displacement-scale': displacementScale });
     },
   };

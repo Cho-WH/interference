@@ -40,6 +40,12 @@ h1 { font-size: 22px; letter-spacing: -.05em; font-weight: 700; margin: 0; }
 .button-dark:hover { background: #3c4a50; }
 .button-quiet { color: #667176; background: transparent; }
 .button-quiet:hover { background: #e8ebe5; }
+.lesson-entry { display: inline-flex; align-items: center; text-decoration: none; }
+.lesson-entry:focus-visible { outline: 3px solid #31a2a8; outline-offset: 3px; }
+@media (max-width: 420px) {
+  .app-header { flex-wrap: wrap; }
+  .app-header .playback-controls { margin-left: auto; }
+}
 .experiment { border: 1px solid #e0e4df; border-radius: 12px; background: #fff; }
 .experiment-toolbar { display: flex; align-items: center; gap: 14px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .view-switch { display: flex; padding: 3px; background: #f0f2ef; border-radius: 8px; }

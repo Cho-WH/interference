@@ -4,10 +4,25 @@ import { toScreen } from '../geometry/layout';
 import { FIELD_HANDLE_HIT_RADIUS, sourceGapHandle } from '../geometry/field-handles';
 
 import { formatDistance } from '../ui/copy';
-import { pathFromPoints, setAttributes, setLine, svgElement as element } from '../visual/svg';
+import { createDisplacementMarker, pathFromPoints, setAttributes, setLine, SUM_COLOR, svgElement as element } from '../visual/svg';
 import type { PaletteId } from '../visual/field-palettes';
 import { createFieldSurface } from '../rendering/field-surface';
 const colors = ['#51dfce', '#ffb16b'] as const;
+
+/** Optional presentation policy; omitted options preserve the ordinary explorer. */
+export type FieldDisplayOptions = Readonly<{
+  surface?: boolean;
+  paths?: boolean;
+  distances?: boolean;
+  scale?: boolean;
+  sources?: boolean;
+  probe?: boolean;
+  inputEnabled?: boolean;
+  probeInput?: boolean;
+  sourceInput?: boolean;
+  localProbeResult?: boolean;
+  displacementScale?: number;
+}>;
 
 export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, invalidate: () => void, report?: (event: string, error?: unknown) => void) {
   const surface = createFieldSurface(canvas, invalidate, report);
@@ -59,13 +74,19 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
   const probeBounds = element('path', { fill: 'none', stroke: '#e5f2ef', 'stroke-width': 1, 'stroke-dasharray': '3 6', 'stroke-linecap': 'round', 'pointer-events': 'none', 'data-probe-bounds': '', visibility: 'hidden' });
   const origins = colors.map((color, i) => element('circle', { r: 5, fill: '#102a37', stroke: color, 'stroke-width': 2, 'data-emission-origin': `source-${i + 1}`, 'pointer-events': 'none' }));
   const targets = colors.map((color, i) => element('circle', { r: 15, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-dasharray': '4 3', 'data-source-target': `source-${i + 1}`, 'pointer-events': 'none' }));
-  svg.append(probeBounds, pathGroup, scaleGroup, ...origins, ...targets, ...sources, gap, probe);
+  const localResult = element('g', { 'data-local-probe-result': '', 'aria-hidden': 'true', display: 'none' });
+  const localLink = element('line', { stroke: '#c4d5df', 'stroke-width': 1.5, 'stroke-dasharray': '4 5' });
+  localResult.append(localLink);
+  const localMarker = createDisplacementMarker(localResult, SUM_COLOR, 'local-probe-result');
+  const localLabel = element('text', { 'font-size': 20, 'text-anchor': 'middle', fill: '#fff', 'paint-order': 'stroke', stroke: '#152b3b', 'stroke-width': 3 });
+  localLabel.textContent = 'P의 합성변위'; localResult.append(localLabel);
+  svg.append(probeBounds, pathGroup, scaleGroup, ...origins, ...targets, ...sources, gap, probe, localResult);
   return {
     rate: surface.rate,
     presented: surface.presented,
-    render(frame: WaveFrame, mode: FieldMode, transform: FieldTransform, paletteId: PaletteId, playing: boolean, targetPositions?: SourcePair<Vec2>, probeOutline?: readonly Vec2[]) {
+    render(frame: WaveFrame, mode: FieldMode, transform: FieldTransform, paletteId: PaletteId, playing: boolean, targetPositions?: SourcePair<Vec2>, probeOutline?: readonly Vec2[], display: FieldDisplayOptions = {}) {
       const { snapshot } = frame;
-      surface.render(frame, mode, transform, paletteId, playing);
+      if (display.surface !== false) surface.render(frame, mode, transform, paletteId, playing);
       svg.setAttribute('data-distance-scale', String(transform.scale));
       svg.setAttribute('data-time-seconds', String(snapshot.clock.timeSeconds));
       svg.setAttribute('data-moving', String(snapshot.moving));
@@ -74,12 +95,36 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
       svg.setAttribute('data-wavelength-pixels', String(snapshot.model.wavelength * transform.scale));
       svg.setAttribute('viewBox', `0 0 ${transform.width} ${transform.height}`);
       const p = toScreen(snapshot.model.probe, transform);
+      setAttributes(pathGroup, { display: display.paths === false ? 'none' : null });
+      setAttributes(scaleGroup, { display: display.scale === false ? 'none' : null });
+      setAttributes(probe, { display: display.probe === false ? 'none' : null, tabindex: display.inputEnabled === false ? -1 : 0 });
+      const probeEnabled = display.inputEnabled !== false && display.probeInput !== false;
+      const sourceEnabled = display.inputEnabled !== false && display.sourceInput !== false;
+      probe.style.pointerEvents = probeEnabled ? 'all' : 'none';
+      probe.setAttribute('tabindex', probeEnabled && display.probe !== false ? '0' : '-1');
+      labels.forEach(label => setAttributes(label.group, { display: display.distances === false ? 'none' : null }));
+      sources.forEach(source => {
+        setAttributes(source, { display: display.sources === false ? 'none' : null, tabindex: display.inputEnabled === false ? -1 : 0 });
+        source.style.pointerEvents = sourceEnabled ? 'all' : 'none';
+        source.setAttribute('tabindex', sourceEnabled && display.sources !== false ? '0' : '-1');
+      });
+      [...origins, ...targets].forEach(marker => setAttributes(marker, { display: display.sources === false ? 'none' : null }));
+      setAttributes(localResult, { display: display.localProbeResult ? null : 'none' });
+      if (display.localProbeResult) {
+        const maxAmplitude = snapshot.model.sources[0].amplitude + snapshot.model.sources[1].amplitude;
+        const displacementScale = display.displacementScale ?? (maxAmplitude ? 50 / maxAmplitude : 1);
+        const x = p.x + 110 < transform.width - 70 ? p.x + 110 : p.x - 110;
+        setLine(localLink, p, { x, y: p.y });
+        localMarker.render(x, p.y, snapshot.probe.resultantDisplacement, displacementScale, maxAmplitude);
+        setAttributes(localLabel, { x, y: p.y + maxAmplitude * displacementScale + 30 });
+      }
       probeBounds.setAttribute('visibility', probeOutline ? 'visible' : 'hidden');
       if (probeOutline) probeBounds.setAttribute('d', pathFromPoints(probeOutline.map(point => toScreen(point, transform))) + 'Z');
       const gapPoint = sourceGapHandle(snapshot.model, transform);
       if (gapPoint) gap.setAttribute('transform', `translate(${gapPoint.x},${gapPoint.y})`);
       gap.setAttribute('visibility', gapPoint ? 'visible' : 'hidden');
       gap.setAttribute('tabindex', gapPoint ? '0' : '-1');
+      setAttributes(gap, { display: display.sources === false || !sourceEnabled ? 'none' : null, tabindex: sourceEnabled && gapPoint ? 0 : -1 });
       probe.setAttribute('transform', `translate(${p.x},${p.y})`);
       const labelOnLeft = p.x > transform.width - 37;
       probeLabel.setAttribute('x', labelOnLeft ? '-19' : '19');

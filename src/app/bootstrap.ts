@@ -35,7 +35,11 @@ function detach() {
 }
 window.addEventListener('error', onError);
 window.addEventListener('unhandledrejection', onRejection);
-import('./main').then(({ mountApp }) => {
+// A query route also survives a direct refresh on static hosts such as Pages.
+const appModule = new URLSearchParams(location.search).get('mode') === 'teacher'
+  ? import('./teacher')
+  : import('./main');
+appModule.then(({ mountApp }) => {
   if (failed || disposed) return;
   mountApp(root, session);
   startup = false;
@@ -43,5 +47,6 @@ import('./main').then(({ mountApp }) => {
 
 if (import.meta.hot) {
   import.meta.hot.accept('./main', () => location.reload());
+  import.meta.hot.accept('./teacher', () => location.reload());
   import.meta.hot.dispose(() => { disposed = true; detach(); session.dispose(); });
 }

@@ -1,12 +1,9 @@
 import type { AppSession } from './session';
 import { createModel, updateModel, sourcePositionExtremes, sourceSeparation, normalizeParameter } from '../model/state';
-import type { ModelAction } from '../model/state';
+import { createExperimentController, type ExperimentAction } from './experiment-controller';
 import type { ViewState, Vec2 } from '../model/types';
-import { createClock } from '../runtime/clock';
 import { createFrameCadence } from '../runtime/frame-cadence';
-import { createRetardedEngine } from '../physics/retarded-engine';
-import type { WaveEngine } from '../physics/engine';
-import { COMPARISON_HEIGHT, LANDSCAPE_COMPARISON_HEIGHT, createFieldTransform, createSceneTransform, landscapeColumns, sceneFieldEnvelope, visibleFieldBounds } from '../geometry/layout';
+import { COMPARISON_HEIGHT, LANDSCAPE_COMPARISON_HEIGHT, createFieldTransform, createSceneTransform, landscapeColumns, visibleFieldBounds } from '../geometry/layout';
 import { createFieldView } from '../views/field';
 import { createProbeRegion, containsProbe, constrainProbe, probeBoundary, type ProbeRegion } from '../geometry/probe-region';
 import { createComparisonView } from '../views/comparison';
@@ -34,11 +31,9 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   const observationPanel = createObservationPanel(shell);
   const transition = createComparisonTransition();
   let view: ViewState = { playing: true, playbackRate: DEFAULT_PLAYBACK_RATE, fieldMode: 'wave', changeMode: 'propagate', comparisonOpen: false, pathWaves: true, interacted: false };
-  const clock = createClock();
+  const experiment = createExperimentController({ model });
   const cadence = createFrameCadence();
-  // The only backend selection point. Views consume WaveFrame data, not this implementation.
-  const engine: WaveEngine = createRetardedEngine(model, sceneFieldEnvelope(model.bounds, sourcePositionExtremes(model.bounds)));
-  let currentFrame = engine.read(model.probe);
+  let currentFrame = experiment.read();
   let pathSamples: ReturnType<typeof currentFrame.samplePaths> | undefined;
   let previewSeparation: number | null = null;
   let showProbeBounds = false;
@@ -80,7 +75,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     dirty = true;
     if (!animationFrame && !document.hidden && !destroyed) animationFrame = requestAnimationFrame(render);
   }
-  function dispatch(action: ModelAction) {
+  function dispatch(action: ExperimentAction) {
     if (action.type === 'probe' && probeRegion) {
       const position = updateModel(model, action).probe;
       if (!containsProbe(probeRegion, position)) {
@@ -89,11 +84,8 @@ export function mountApp(root: HTMLElement, session: AppSession) {
       }
       action = { type: 'probe', position: constrainProbe(probeRegion, position) };
     }
-    engine.advanceTo(clock.tick(performance.now()).timeSeconds);
-    model = updateModel(model, action);
-    if (action.type === 'wavelength') engine.setWavelength(model.wavelength);
-    if (action.type === 'separation') engine.setSourceTargets([model.sources[0].position, model.sources[1].position]);
-    if (view.changeMode === 'instant' && (action.type === 'wavelength' || action.type === 'separation')) engine.settle();
+    experiment.dispatch(action, performance.now(), { changeMode: view.changeMode });
+    model = experiment.model;
     if (action.type === 'probe') view = { ...view, interacted: true };
     syncControls(); requestRender();
   }
@@ -123,12 +115,15 @@ export function mountApp(root: HTMLElement, session: AppSession) {
         side ? columns.comparisonWidth : width, sourcePositionExtremes(model.bounds));
       regionOutline = probeBoundary(probeRegion);
       const position = constrainProbe(probeRegion, model.probe);
-      if (position !== model.probe) model = updateModel(model, { type: 'probe', position });
+      if (position !== model.probe) {
+        experiment.dispatch({ type: 'probe', position }, now);
+        model = experiment.model;
+      }
       hasRenderedFrame = false;
     }
-    engine.advanceTo(clock.tick(now).timeSeconds);
+    experiment.advance(now);
     const hintSources = previewSeparation === null ? model.sources : updateModel(model, { type: 'separation', value: previewSeparation }).sources;
-    const latestFrame = engine.read(model.probe, visibleFieldBounds(transform), view.changeMode === 'instant' && previewSeparation !== null
+    const latestFrame = experiment.read(visibleFieldBounds(transform), view.changeMode === 'instant' && previewSeparation !== null
       ? { equilibriumSources: [hintSources[0].position, hintSources[1].position] } : undefined);
     const sampleDue = view.playing && cadence.shouldSample(now, latestFrame.snapshot.steady, fieldView.rate(latestFrame));
     const refreshPhysics = sampleDue || !hasRenderedFrame || (dirty && (!view.playing || view.changeMode === 'instant')) || (side && animation.pathsChanging);
@@ -162,13 +157,13 @@ export function mountApp(root: HTMLElement, session: AppSession) {
 
   controls.play.addEventListener('click', () => {
     view = { ...view, playing: !view.playing };
-    engine.advanceTo(clock.setPlaying(view.playing, performance.now()).timeSeconds);
+    experiment.setPlaying(view.playing, performance.now());
     cadence.reset();
     syncControls(); requestRender();
   }, { signal });
   controls.playbackRate.addEventListener('input', () => {
     const playbackRate = PLAYBACK_RATES[Number(controls.playbackRate.value)];
-    engine.advanceTo(clock.setRate(playbackRate, performance.now()).timeSeconds);
+    experiment.setRate(playbackRate, performance.now());
     view = { ...view, playbackRate };
     cadence.reset(); hasRenderedFrame = false;
     syncControls(); requestRender();
@@ -185,15 +180,16 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   controls.changeProcess.addEventListener('click', () => {
     const changeMode = view.changeMode === 'propagate' ? 'instant' : 'propagate';
     fieldInput.cancel(); previewSeparation = null;
-    engine.advanceTo(clock.tick(performance.now()).timeSeconds);
-    if (changeMode === 'instant') engine.settle();
+    const now = performance.now();
+    if (changeMode === 'instant') experiment.settle(now);
+    else experiment.advance(now);
     view = { ...view, changeMode };
     cadence.reset(); hasRenderedFrame = false; syncControls(); requestRender();
   }, { signal });
   for (const [control, mode] of [[controls.wave, 'wave'], [controls.amplitude, 'amplitude']] as const) {
     control.addEventListener('click', () => {
       fieldInput.cancel();
-      engine.advanceTo(clock.tick(performance.now()).timeSeconds);
+      experiment.advance(performance.now());
       view = { ...view, fieldMode: mode }; hasRenderedFrame = false; syncControls(); requestRender();
     }, { signal });
   }
@@ -213,11 +209,11 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   controls.reset.addEventListener('click', () => {
     clearTimeout(boundsTimer); showProbeBounds = false;
     fieldInput.cancel();
-    model = createModel();
     // Reset the experiment while retaining the student's chosen playback and view.
-    clock.reset(performance.now());
+    experiment.reset(performance.now());
+    model = experiment.model;
     cadence.reset(); pathSamples = undefined;
-    engine.reset(model); previewSeparation = null; currentFrame = engine.read(model.probe); hasRenderedFrame = false;
+    previewSeparation = null; currentFrame = experiment.read(); hasRenderedFrame = false;
     view = { ...view, interacted: false };
     syncControls(); updateReadouts(); announce(); requestRender();
   }, { signal });
@@ -226,7 +222,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     // Repeated P input accumulates immediately, even between sampled display frames.
     getModel: () => ({ ...currentFrame.snapshot.model, probe: model.probe }),
     getProbeGuide: () => {
-      const frame = engine.read(model.probe, visibleFieldBounds(transform));
+      const frame = experiment.read(visibleFieldBounds(transform));
       if (!frame.snapshot.steady || previewSeparation !== null || !probeRegion) return undefined;
       const region = probeRegion;
       return {
@@ -251,21 +247,21 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   resizeObserver.observe(shell.stage);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      engine.advanceTo(clock.setPlaying(false, performance.now()).timeSeconds);
+      experiment.setPlaying(false, performance.now());
       fieldInput.cancel();
       cancelAnimationFrame(animationFrame); animationFrame = 0; transition.suspend();
     } else {
       cadence.reset();
-      clock.setPlaying(view.playing, performance.now()); requestRender();
+      experiment.setPlaying(view.playing, performance.now()); requestRender();
     }
   }, { signal });
   window.addEventListener('pagehide', () => {
-    engine.advanceTo(clock.setPlaying(false, performance.now()).timeSeconds);
+    experiment.setPlaying(false, performance.now());
     cancelAnimationFrame(animationFrame); animationFrame = 0;
   }, { signal });
   window.addEventListener('pageshow', () => {
     cadence.reset();
-    clock.setPlaying(view.playing, performance.now()); requestRender();
+    experiment.setPlaying(view.playing, performance.now()); requestRender();
   }, { signal });
   reducedMotion.addEventListener('change', requestRender, { signal });
   landscape.addEventListener('change', () => { fieldInput.cancel(); hasRenderedFrame = false; requestRender(); }, { signal });

@@ -18,6 +18,7 @@ export function createShell(root: HTMLElement, initial: ModelState) {
           <h1>${COPY.title}</h1>
         </div>
         <div class="playback-controls" role="group" aria-label="재생 조작">
+          <a class="button button-quiet lesson-entry" href="?mode=teacher">교사 수업</a>
           <button id="reset" class="button button-quiet" type="button">${COPY.reset}</button>
           <button id="play" class="button button-dark" type="button" aria-label="${COPY.pause}">${COPY.pause}</button>
         </div>

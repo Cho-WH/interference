@@ -12,6 +12,7 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
   getTargetSeparation(): number;
   previewSeparation(value: number | null): void;
   announce(): void;
+  canInput?(target: Target): boolean;
 }) {
   let active: { target: Target; pointerId: number; preview: number | null; startY: number; separation: number } | null = null;
   const abort = new AbortController();
@@ -26,6 +27,7 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
   }, { capture: true, signal });
   const sourceSign = (target: Target) => target === 'source-1' ? -1 : 1;
   function move(event: PointerEvent, target: Target) {
+    if (options.canInput && !options.canInput(target)) return;
     const rect = svg.getBoundingClientRect();
     const point = toWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top }, options.getTransform());
     if (target === 'probe') options.moveProbe(probeDetent.move(point, options.getProbeGuide(), options.getTransform().scale));
@@ -43,6 +45,7 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
     const screenPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     const model = options.getModel(), transform = options.getTransform();
     const target = hitTestFieldHandle(screenPoint, model, transform);
+    if (options.canInput && !options.canInput(target)) return;
     const element = svg.querySelector<SVGElement>(`[data-handle="${target}"]`);
     probeDetent.reset();
     active = { target, pointerId: event.pointerId, preview: null, startY: toWorld(screenPoint, transform).y, separation: options.getTargetSeparation() };
@@ -81,6 +84,7 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     const target = (event.target as SVGElement).dataset.handle as Target | undefined;
     if (!target) return;
+    if (options.canInput && !options.canInput(target)) { event.preventDefault(); return; }
     const step = event.shiftKey ? .02 : .005;
     const delta = { x: event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0, y: event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0 };
     const model = options.getModel();
