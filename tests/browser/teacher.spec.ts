@@ -31,6 +31,31 @@ async function geometry(page: Page) {
   }));
 }
 
+test('teacher wave palette defaults to water and can change while paused without changing the experiment', async ({ page }) => {
+  await page.goto('/?mode=teacher'); await at(page, 's1-field');
+  const canvas = page.locator('.teacher-background canvas');
+  await expect(canvas).toHaveAttribute('data-palette', 'water');
+  await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
+  await expect(page.locator(shell)).toHaveAttribute('data-playing', 'false');
+  const time = await state(page, 'time-seconds'), probe = await state(page, 'probe-x');
+  await page.getByRole('button', { name: '도구', exact: true }).click();
+  const palette = page.getByRole('combobox', { name: '파동 색상', exact: true });
+  await expect(palette).toHaveValue('water');
+  for (const id of ['contrast', 'silver', 'water']) {
+    await palette.selectOption(id);
+    await expect(canvas).toHaveAttribute('data-palette', id);
+    expect(await state(page, 'time-seconds')).toBe(time);
+    expect(await state(page, 'probe-x')).toBe(probe);
+    expect(await state(page, 'playing')).toBe('false');
+  }
+  await palette.selectOption('silver');
+  await page.getByRole('button', { name: '닫기 · Esc', exact: true }).click();
+  await advance(page, 'P의 진동 보기', 's1-probe');
+  await expect(canvas).toHaveAttribute('data-palette', 'silver');
+  await page.getByRole('button', { name: '도구', exact: true }).click();
+  await expect(palette).toHaveValue('silver');
+});
+
 test('moving P after observing its vibration keeps stage-specific guidance throughout analysis', async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto('/?mode=teacher'); await at(page, 's1-field');

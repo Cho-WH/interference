@@ -8,6 +8,7 @@ import { svgElement, svgText, setAttributes } from '../visual/svg';
 import { teacherCorrespondence, teacherFieldTransform, teacherPose, updatePoseGeometry, type TeacherPose } from './layout';
 import { createPresentationAnimator } from './animator';
 import { resolveVisibility } from '../lesson/reveal-policy';
+import { DEFAULT_PALETTE, type PaletteId } from '../visual/field-palettes';
 import './teacher.css';
 
 export { teacherFieldEnvelope } from './layout';
@@ -15,6 +16,7 @@ interface StageState {
   now: number; playing: boolean; reducedMotion?: boolean; motionSpeed?: MotionSpeed;
   visible?: ReadonlySet<SemanticId>; validity?: FrameValidity; question?: string;
   allowedInputs?: readonly string[];
+  palette?: PaletteId;
 }
 export function createTeacherStage(container: HTMLElement, options: {
   invalidate: () => void; report?: (event: string, error?: unknown) => void;
@@ -122,7 +124,7 @@ export function createTeacherStage(container: HTMLElement, options: {
       fieldSvg.style.pointerEvents = spatial ? 'auto' : 'none';
       fieldSvg.setAttribute('aria-hidden', String(!spatial));
       fieldSvg.style.opacity = transitioning && !movingProbe ? String(Math.min(1, pose.backgroundOpacity * 3)) : '1';
-      field.render(frame, cue.fieldMode, transform, 'contrast', state.playing, undefined, undefined, {
+      field.render(frame, cue.fieldMode, transform, state.palette ?? DEFAULT_PALETTE, state.playing, undefined, undefined, {
         surface: showBackground, paths: visible.has('spatial-paths'), distances: false, scale: false,
         sources: spatial && visible.has('source-1'), probe: spatial && visible.has('probe'),
         inputEnabled: spatial && !transitioning && !!state.allowedInputs?.length,

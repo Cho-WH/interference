@@ -12,6 +12,7 @@ import { createPresenterControls, type PresenterAction } from '../ui/presenter-c
 import { createLessonEditor } from '../ui/lesson-editor';
 import { bindFieldInput } from '../ui/field-input';
 import { sourceSeparation } from '../model/state';
+import { DEFAULT_PALETTE, type PaletteId } from '../visual/field-palettes';
 
 export function mountApp(root: HTMLElement, session: AppSession) {
   const abort = new AbortController(), signal = abort.signal;
@@ -19,6 +20,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   const media = window.matchMedia('(prefers-reduced-motion: reduce)');
   let reducedMotion = media.matches, resumePlaying = true, suspended = false;
   let laser = false, speed: MotionSpeed = 'normal', freeUnfolded = false, notice = '';
+  let palette: PaletteId = DEFAULT_PALETTE;
   let editor: ReturnType<typeof createLessonEditor> | undefined, preview: { lesson: LessonSpec; cue: CueSpec } | undefined;
   let rehearsing = false, savedRun: { lesson: LessonSpec; cueId: string; preset: ExperimentPreset } | undefined;
   let rehearsalPreset: ExperimentPreset | undefined, bookmark: SavedPosition | undefined;
@@ -130,6 +132,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     },
     rate(value) { experiment.setRate(value, performance.now()); refreshPhysics = true; requestRender(); },
     speed(value) { speed = value; requestRender(); },
+    palette(value) { palette = value; requestRender(); },
     override(id, visible) { runner.setOverride(id, visible); },
   });
   session.onDispose(() => controls.destroy());
@@ -182,7 +185,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
       runner.exploring ? { question: cue.question, notes: cue.teacherNotes } : teachingCopy(cue, runner.lesson, runner.changedConditions);
     const question = copy.question;
     const { transitioning } = stage.render(frame, paths, cue, { now, playing: experiment.playing, reducedMotion, motionSpeed: speed,
-      validity: bundle.validity, visible, question, allowedInputs: preview ? [] : cue.allowedInputs });
+      validity: bundle.validity, visible, question, palette, allowedInputs: preview ? [] : cue.allowedInputs });
     cuePending = false;
     const state = runner.state;
     const waiting = !state.canNext && state.index < state.total - 1 && !runner.exploring
@@ -212,7 +215,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
       playing: experiment.playing, canPrevious: state.canPrevious, canNext: state.canNext, transitioning, reducedMotion,
       waiting, blackOut: runner.blackOut, laser, exploring: runner.exploring, rehearsing, canResume: !!bookmark,
       notes: copy.notes,
-      preset: currentPreset(experiment), allowed: cue.allowedInputs, rate: experiment.playbackRate, speed, visible, overrideable: cue.overrideable });
+      preset: currentPreset(experiment), allowed: cue.allowedInputs, rate: experiment.playbackRate, speed, palette, visible, overrideable: cue.overrideable });
     if (announcedCue !== cue.id && !runner.blackOut) { announcement.textContent = state.scene.title + '. ' + (question ?? ''); announcedCue = cue.id; }
     if (runner.blackOut) announcement.textContent = '화면 가림';
     if (experiment.playing || transitioning) requestRender();

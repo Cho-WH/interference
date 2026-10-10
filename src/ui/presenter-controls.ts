@@ -1,11 +1,13 @@
 import type { LessonSpec, InputId, SemanticId, MotionSpeed } from '../lesson/types';
 import type { ExperimentPreset } from '../lesson/types';
+import { FIELD_PALETTES, type PaletteId } from '../visual/field-palettes';
 export type PresenterAction = 'next' | 'previous' | 'play' | 'restart' | 'restartExample' | 'replay' | 'explore' | 'return' | 'restoreReturn' | 'restore' | 'settle' | 'blackout' | 'fullscreen' | 'laser' | 'reduced' | 'editor' | 'exit' | 'resume' | 'rehearsalEnd' | 'freeLayout';
 export function createPresenterControls(container: HTMLElement, callbacks: {
   action(action: PresenterAction): void;
   goTo(sceneId: string, cueId: string): void;
   input(id: InputId, value: number | { x: number; y: number }): void;
   rate(value: number): void; speed(value: MotionSpeed): void;
+  palette(value: PaletteId): void;
   override(id: SemanticId, visible: boolean): void;
 }) {
   const abort = new AbortController(), signal = abort.signal;
@@ -93,6 +95,7 @@ export function createPresenterControls(container: HTMLElement, callbacks: {
       }
       select('파동 재생 배속', [['.25','0.25×'],['.5','0.5×'],['1','1×'],['2','2×']], String(latest.rate), value => callbacks.rate(Number(value)));
       select('화면 연출 속도', [['slow','느리게'],['normal','보통'],['fast','빠르게']], latest.speed, value => callbacks.speed(value as MotionSpeed));
+      select('파동 색상', FIELD_PALETTES.map(p => [p.id, p.name]), latest.palette, value => callbacks.palette(value as PaletteId));
       const reveals = document.createElement('fieldset'); reveals.className = 'presenter-reveals'; content.append(reveals);
       const revealLegend = document.createElement('legend'); revealLegend.textContent = '이 단계에서만 적용 · 예측 가림 유지'; reveals.append(revealLegend);
       for (const [id, name] of [['distance-values','수치'],['wavelength-ruler','파장 눈금'],['component-1','성분 1'],['component-2','성분 2'],['resultant','합']] as [SemanticId,string][]) {
@@ -133,4 +136,5 @@ export interface PresenterState {
   waiting?: string; blackOut: boolean; laser: boolean; exploring: boolean; rehearsing: boolean; canResume: boolean;
   notes?: string; preset: ExperimentPreset; allowed: readonly InputId[]; rate: number; speed: MotionSpeed;
   visible: ReadonlySet<SemanticId>; overrideable: readonly SemanticId[];
+  palette: PaletteId;
 }
