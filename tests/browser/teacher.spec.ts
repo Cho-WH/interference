@@ -59,7 +59,11 @@ test('prediction masks every answer channel and a paused cross-context jump wait
 test('B returns to the current spatial P, moves while paused, then unfolds before revealing the result', async ({ page }) => {
   await page.goto('/?mode=teacher'); await at(page, 's1-field');
   await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
+  await expect(page.locator(shell)).toHaveAttribute('data-playing', 'false');
+  const initialX = Number(await state(page, 'probe-x'));
   await page.getByRole('button', { name: '관측점 P. 방향키로 이동', exact: true }).press('ArrowLeft');
+  // Keyboard input schedules a render; wait for the moved coordinate before retaining it.
+  await expect.poll(async () => Number(await state(page, 'probe-x'))).toBeCloseTo(initialX - .005, 10);
   const manualX = await state(page, 'probe-x'), time = await state(page, 'time-seconds');
   await page.getByRole('button', { name: '1 / 8 · 전체 현상', exact: true }).click();
   await page.getByRole('button', { name: '합성 진동', exact: true }).click(); await at(page, 's5-sum');
