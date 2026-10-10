@@ -93,7 +93,7 @@ for (const policy of ['predict-from-paths', 'predict-sum'] as const) {
     await expect(page.locator('.teacher-shell')).toHaveAttribute('data-exploring', 'true');
     await cross(true);
     await page.getByRole('button', { name: '도구', exact: true }).click();
-    await page.getByRole('button', { name: '현재 조건으로 수업 복귀', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '현재 조건으로 수업 복귀', exact: true }).click();
     await expect(page.locator('.teacher-shell')).toHaveAttribute('data-exploring', 'false');
     await cross(false);
   });
