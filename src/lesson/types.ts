@@ -4,7 +4,7 @@ export const SEMANTIC_IDS = [
   'field', 'source-1', 'source-2', 'probe', 'local-probe-result', 'path-1', 'path-2',
   'component-1', 'component-2', 'resultant', 'same-distance-correspondence',
   'path-difference', 'wavelength-ruler', 'distance-values', 'endpoint-links',
-  'same-probe-label', 'spatial-paths', 'path-baselines', 'condition-values', 'rule',
+  'same-probe-label', 'spatial-paths', 'path-baselines', 'condition-values', 'wavelength-comparison', 'rule',
 ] as const;
 export type SemanticId = typeof SEMANTIC_IDS[number];
 export const LAYOUT_IDS = ['field', 'spatial-paths', 'parallel', 'path-comparison', 'endpoint-comparison'] as const;
@@ -17,6 +17,7 @@ export type RevealPolicyId = 'explain' | 'predict-from-paths' | 'predict-sum';
 export type MotionSpeed = 'slow' | 'normal' | 'fast';
 export type ValidityScope = 'probe-steady' | 'analysis-steady';
 export interface ExperimentPreset { probe: { x: number; y: number }; wavelength: number; separation: number }
+export interface WavelengthChange { fromContextId: string; toContextId: string; factor: number }
 export interface CueSpec {
   id: string; label: string; experimentContextId: string; layout: LayoutId; fieldMode: FieldMode;
   visible: readonly SemanticId[]; emphasis: readonly SemanticId[];
@@ -31,6 +32,8 @@ export interface LessonSpec {
   schemaVersion: 1; id: string; title: string; revision: number;
   engineContract: 'wave-frame-v1'; modelProfile: 'equal-phase-equal-amplitude-v1';
   motionSpeed: MotionSpeed; experiments: Readonly<Record<string, ExperimentPreset>>;
+  /** Continue the preceding experiment, changing only its wavelength. */
+  wavelengthChange?: WavelengthChange;
   scenes: readonly SceneSpec[];
 }
 export interface LessonState {

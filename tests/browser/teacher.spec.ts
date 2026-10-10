@@ -115,30 +115,108 @@ test('moving P after observing its vibration keeps stage-specific guidance throu
   expect(await state(page, 'probe-x')).toBe(movedX);
 });
 
-test('prediction masks every answer channel and a paused cross-context jump waits without auto reveal', async ({ page }) => {
+async function analyzeNewWavelength(page: Page) {
+  await advance(page, '멈추고 펼치기', 's7-c-parallel');
+  await expect(page.locator('.teacher-background')).toBeHidden();
+  expect(await state(page, 'playing')).toBe('false');
+  const start = await geometry(page), time = await state(page, 'time-seconds');
+  for (const [label, cue] of [['이전·지금 파장 비교', 's7-c-compare'], ['도착 성분 비교', 's7-c-paths']]) {
+    await advance(page, label, cue);
+    const rows = await geometry(page);
+    rows.forEach((row, index) => {
+      expect(row.scale).toBeCloseTo(start[index].scale, 7);
+      expect(row.length).toBeCloseTo(start[index].length, 7);
+    });
+    expect(await state(page, 'time-seconds')).toBe(time);
+    await expect(page.locator(comparison + ' [data-wave-path="source-1"]')).toBeVisible();
+    await expect(page.locator(comparison + ' [data-wave-path="source-2"]')).toBeVisible();
+    await expect(page.locator(comparison + ' [data-marker="sum"]')).toBeHidden();
+    const rulers = page.locator(comparison + ' [data-wavelength-comparison]');
+    await expect(rulers).toBeVisible();
+    const oldRuler = rulers.locator('[data-wavelength-previous]'), newRuler = rulers.locator('[data-wavelength-current]');
+    const oldLength = Number(await oldRuler.getAttribute('data-pixel-length'));
+    const newLength = Number(await newRuler.getAttribute('data-pixel-length'));
+    expect(oldLength).toBeCloseTo(newLength, 8);
+    expect(oldLength).toBeCloseTo(.15 * start[0].scale, 8);
+    expect(oldLength / Number(await oldRuler.getAttribute('data-wavelength-pixels'))).toBeCloseTo(1, 8);
+    expect(newLength / Number(await newRuler.getAttribute('data-wavelength-pixels'))).toBeCloseTo(.5, 8);
+    await expect(rulers.locator('[data-wavelength-reference-ratio="previous"]')).toHaveText('1λ₀');
+    await expect(rulers.locator('[data-wavelength-reference-ratio="current"]')).toHaveText('½λ');
+  }
+  await advance(page, '재생하며 관찰', 's7-c-components-playing');
+  expect(await state(page, 'playing')).toBe('true');
+  await advance(page, '합 공개', 's7-c-sum');
+  await expect(page.locator(comparison + ' [data-marker="sum"]')).toBeVisible();
+}
+
+test('a paused C result jump keeps spatial waves visible and waits for manual unfolding', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto('/?mode=teacher'); await at(page, 's1-field');
   await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
   const time = await state(page, 'time-seconds');
   await page.getByRole('button', { name: '1 / 8 · 전체 현상', exact: true }).click();
-  await page.getByRole('button', { name: '같은 P의 새로운 합 · 조건 C 적용', exact: true }).click();
+  await page.getByRole('button', { name: '보강에서 상쇄로 · 조건 C 적용', exact: true }).click();
   await at(page, 's7-c-change');
   expect(await state(page, 'time-seconds')).toBe(time);
-  await expect(page.getByRole('button', { name: '결과 확인', exact: true })).toBeDisabled();
-  await expect(page.locator('.teacher-background')).toBeHidden();
-  for (const selector of ['[data-wave-path]', '[data-marker="sum"]', '[data-marker="source-1"]', '[data-marker="source-2"]'])
+  await expect(page.getByRole('button', { name: '멈추고 펼치기', exact: true })).toBeDisabled();
+  await expect(page.locator('.teacher-background')).toBeVisible();
+  await expect(page.locator(comparison + ' [data-wave-path="source-1"]')).toBeVisible();
+  await expect(page.locator(comparison + ' [data-wave-path="source-2"]')).toBeVisible();
+  for (const selector of ['[data-marker="sum"]', '[data-marker="source-1"]', '[data-marker="source-2"]'])
     for (const node of await page.locator(comparison + ' ' + selector).all()) await expect(node).toBeHidden();
   await page.getByRole('button', { name: '도구', exact: true }).click();
   await page.getByRole('button', { name: '변화 과정 생략', exact: true }).click();
-  await expect(page.getByRole('button', { name: '결과 확인', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '멈추고 펼치기', exact: true })).toBeEnabled();
   await at(page, 's7-c-change');
-  await advance(page, '결과 확인', 's7-c-paths');
-  await expect(page.locator(comparison + ' [data-marker="sum"]')).toBeHidden();
-  await advance(page, '합 공개', 's7-c-sum');
-  await expect(page.locator(comparison + ' [data-marker="sum"]')).toBeVisible();
+  await analyzeNewWavelength(page);
   await advance(page, '전체로 돌아가기', 's8-field');
   await advance(page, '간섭 조건 정리', 's8-rule');
   await expect(page.locator('.teacher-rule')).toBeVisible();
 });
+
+for (const width of [1280, 390]) {
+  test(`wavelength prediction returns to space and explicitly plays twice the wavelength at ${width}px`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/?mode=teacher'); await at(page, 's1-field');
+    await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
+    await page.getByRole('button', { name: /^1 \/ 8 · 전체 현상/ }).click();
+    await page.getByRole('button', { name: '예측 확인 · 조건 B 적용', exact: true }).click();
+    await at(page, 's6-b-sum');
+    const b = await geometry(page), time = await state(page, 'time-seconds');
+    await advance(page, '공간으로 돌아가기', 's7-b-space');
+    (await geometry(page)).forEach((row, i) => expect(row.length).toBeCloseTo(b[i].length, 7));
+    await expect(page.locator('.teacher-background')).toBeVisible();
+    await advance(page, '파장 변경 예측', 's7-b-predict');
+    (await geometry(page)).forEach((row, i) => expect(row.distance).toBeCloseTo(b[i].distance, 9));
+    expect(await state(page, 'wavelength')).toBe('0.15');
+    expect(await state(page, 'playing')).toBe('false');
+    expect(await state(page, 'time-seconds')).toBe(time);
+    const x = await state(page, 'probe-x'), y = await state(page, 'probe-y'), spatial = await geometry(page);
+    await expect(page.locator('.teacher-condition-values')).toHaveText('파장 λ 15 cm → 다음 파장 30 cm');
+    const buttons = await page.locator('.teacher-controls button:visible').evaluateAll(nodes => nodes.map(node => {
+      const b = node.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+    }));
+    for (const b of buttons) {
+      expect(b.left).toBeGreaterThanOrEqual(0); expect(b.right).toBeLessThanOrEqual(width);
+      expect(b.top).toBeGreaterThanOrEqual(0); expect(b.bottom).toBeLessThanOrEqual(844);
+    }
+    await advance(page, '파장 두 배로 · 재생 · 조건 C', 's7-c-change');
+    expect(await state(page, 'wavelength')).toBe('0.3');
+    expect(await state(page, 'playing')).toBe('true');
+    expect(await state(page, 'probe-x')).toBe(x); expect(await state(page, 'probe-y')).toBe(y);
+    await expect(page.locator('.teacher-background')).toBeVisible();
+    await expect(page.locator(comparison + ' [data-wave-path="source-1"]')).toBeVisible();
+    await expect(page.locator(comparison + ' [data-wave-path="source-2"]')).toBeVisible();
+    await expect(page.getByRole('button', { name: '멈추고 펼치기', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '멈추고 펼치기', exact: true })).toBeEnabled({ timeout: 15_000 });
+    await at(page, 's7-c-change');
+    (await geometry(page)).forEach((row, i) => {
+      expect(row.scale).toBeCloseTo(spatial[i].scale, 7); expect(row.length).toBeCloseTo(spatial[i].length, 7);
+    });
+    await analyzeNewWavelength(page);
+  });
+}
 
 test('B returns to the current spatial P, moves while paused, then unfolds before revealing the result', async ({ page }) => {
   await page.goto('/?mode=teacher'); await at(page, 's1-field');

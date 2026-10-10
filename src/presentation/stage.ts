@@ -19,6 +19,7 @@ interface StageState {
   visible?: ReadonlySet<SemanticId>; validity?: FrameValidity; question?: string;
   allowedInputs?: readonly string[];
   palette?: PaletteId;
+  referenceWavelength?: number; plannedWavelength?: number;
 }
 export function createTeacherStage(container: HTMLElement, options: {
   invalidate: () => void; report?: (event: string, error?: unknown) => void;
@@ -38,7 +39,31 @@ export function createTeacherStage(container: HTMLElement, options: {
   const reducedToggle = document.createElement('button'); reducedToggle.className = 'teacher-reduced-toggle'; reducedToggle.type = 'button';
   const fullPaths = document.createElement('button'); fullPaths.className = 'teacher-full-paths'; fullPaths.type = 'button'; fullPaths.textContent = '전체 경로';
   const rule = document.createElement('div'); rule.className = 'teacher-rule'; rule.dataset.semantic = 'rule';
-  rule.innerHTML = '<p>경로차를 파장과 비교하기</p><strong>Δr = mλ <span>보강</span></strong><strong>Δr = (m + ½)λ <span>완전 상쇄</span></strong><small>Δr = |r₂ − r₁| · m = 0, 1, 2, …<br>같은 진동수 · 같은 초기 위상 · 같은 도착 진폭 · 정상 상태</small>';
+  rule.innerHTML = `
+    <p>경로차를 파장과 비교하기</p>
+    <section>
+      <h3>보강 간섭 조건</h3>
+      <math aria-label="델타 l = n 람다 = 2n 나누기 2 람다">
+        <mi mathvariant="italic">Δ</mi><mi>l</mi><mo>=</mo><mi>n</mi><mi>λ</mi><mo>=</mo>
+        <mfrac><mrow><mn>2</mn><mi>n</mi></mrow><mn>2</mn></mfrac><mi>λ</mi>
+      </math>
+      <p>반 파장의 짝수배</p>
+    </section>
+    <section>
+      <h3>상쇄 간섭 조건</h3>
+      <math aria-label="델타 l = 2n 더하기 1 나누기 2 람다">
+        <mi mathvariant="italic">Δ</mi><mi>l</mi><mo>=</mo>
+        <mfrac><mrow><mn>2</mn><mi>n</mi><mo>+</mo><mn>1</mn></mrow><mn>2</mn></mfrac><mi>λ</mi>
+      </math>
+      <p>반 파장의 홀수배</p>
+    </section>
+    <small>
+      <math aria-label="경로차 델타 l = l2 빼기 l1의 절댓값">
+        <mi mathvariant="italic">Δ</mi><mi>l</mi><mo>=</mo><mo>|</mo>
+        <msub><mi>l</mi><mn>2</mn></msub><mo>−</mo><msub><mi>l</mi><mn>1</mn></msub><mo>|</mo>
+      </math> · <math><mi>n</mi><mo>=</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>,</mo><mn>2</mn><mo>,</mo><mo>…</mo></math>
+      <br>같은 진동수 · 같은 초기 위상 · 같은 도착 진폭 · 정상 상태
+    </small>`;
   const conditions = document.createElement('p'); conditions.className = 'teacher-condition-values';
   const legend = document.createElement('p'); legend.className = 'teacher-model-legend'; legend.textContent = '같은 진동수 · 같은 초기 위상 · 같은 도착 진폭';
   const cuts = svgElement('g', { 'data-path-cuts': '', display: 'none' }, pathsSvg);
@@ -151,6 +176,7 @@ export function createTeacherStage(container: HTMLElement, options: {
         width, fieldHeight: 0, comparisonHeight: height - 12, progress: 1, guideOpacity: 1,
         fieldTransform: transform, layout: pose.layout, placements: pose.placements, display,
         presentation: true, presentationScale: pose.magnification, analysisSteady: validity.analysisSteady,
+        referenceWavelength: ready && visible.has('wavelength-comparison') ? state.referenceWavelength : undefined,
       });
       counterpart.style.display = split ? '' : 'none';
       if (diagram) {
@@ -185,8 +211,9 @@ export function createTeacherStage(container: HTMLElement, options: {
       representation.hidden = !visible.has('same-probe-label') || transitioning;
       rule.hidden = !visible.has('rule');
       conditions.hidden = !visible.has('condition-values');
+      const plannedWavelength = state.plannedWavelength ?? (cue.id.endsWith('s7-a-predict') ? frame.snapshot.model.wavelength / 2 : undefined);
       conditions.textContent = '파장 λ ' + formatSettingDistance(frame.snapshot.model.wavelength) +
-        (cue.id.endsWith('s7-a-predict') ? '  →  다음 파장 ' + formatSettingDistance(frame.snapshot.model.wavelength / 2) : '');
+        (plannedWavelength ? '  →  다음 파장 ' + formatSettingDistance(plannedWavelength) : '');
       legend.hidden = !cue.id.endsWith('s1-field');
       container.dataset.layout = cue.layout; container.dataset.cue = cue.id;
       container.dataset.fieldVisible = String(showBackground && pose.backgroundOpacity > .65);

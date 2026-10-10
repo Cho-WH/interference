@@ -17,7 +17,7 @@ test('moving P preserves the distinct observation, unfolding and measurement pro
 
 test('changed conditions replace preset-specific claims with relevant questions, and restore cleanly', () => {
   const prompts = new Set<string>();
-  for (const id of ['s4-values', 's5-sum', 's6-b-predict', 's6-b-paths', 's6-b-sum', 's7-a-predict', 's7-c-paths', 's7-c-sum']) {
+  for (const id of ['s4-values', 's5-sum', 's6-b-predict', 's6-b-paths', 's6-b-sum', 's7-b-predict', 's7-c-compare', 's7-c-paths', 's7-c-sum']) {
     const original = cue(id), adapted = teachingCopy(original, DEFAULT_LESSON, true);
     assert.notEqual(adapted.question, original.question, id);
     assert.doesNotMatch(adapted.question!, /7\.5|15cm|한 파장 차|추가 반 파장|진동하지 않는|조건이 달라/);
@@ -26,7 +26,7 @@ test('changed conditions replace preset-specific claims with relevant questions,
       question: original.question, notes: original.teacherNotes,
     });
   }
-  assert.equal(prompts.size, 8, 'each stage retains its own teaching purpose');
+  assert.equal(prompts.size, 9, 'each stage retains its own teaching purpose');
   assert.match(teachingCopy(cue('s4-values'), DEFAULT_LESSON, true).question!, /경로차.*파장.*위상차/);
   assert.match(teachingCopy(cue('s5-sum'), DEFAULT_LESSON, true).question!, /두 성분.*합성 진동/);
   assert.doesNotMatch(teachingCopy(cue('s5-sum'), DEFAULT_LESSON, true).notes!, /합이 계속 0|매 순간 반대/);

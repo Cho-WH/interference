@@ -121,7 +121,7 @@ export function createLessonEditor(host: HTMLElement, initial: LessonSpec, optio
     speed.value = lesson.motionSpeed; settings.append(element('p', '연출 속도 · 파동 배속과 별개'), speed);
     speed.addEventListener('change', () => { draft.change(copy => { copy.motionSpeed = speed.value as LessonSpec['motionSpeed']; }); render(); }, { signal: viewSignal });
     settings.append(element('h3', '학생이 보는 정보'));
-    const reveals: [SemanticId, string][] = [['distance-values', '거리 수치'], ['same-distance-correspondence', '같은 거리 대응'], ['path-difference', '추가 경로'], ['wavelength-ruler', '파장 눈금'], ['component-1', '성분 1'], ['component-2', '성분 2'], ['resultant', '합']];
+    const reveals: [SemanticId, string][] = [['distance-values', '거리 수치'], ['same-distance-correspondence', '같은 거리 대응'], ['path-difference', '추가 경로'], ['wavelength-ruler', '파장 눈금'], ['wavelength-comparison', '이전·지금 파장 비교'], ['component-1', '성분 1'], ['component-2', '성분 2'], ['resultant', '합']];
     for (const [id, label] of reveals) checkbox(settings, label, cue.visible.includes(id), checked =>
       draft.patchCue(selected, { visible: checked ? [...new Set([...cue.visible, id])] : cue.visible.filter(v => v !== id) }));
     settings.append(element('small', '예측 가림과 정상 상태 검사는 이 선택보다 우선합니다.'));

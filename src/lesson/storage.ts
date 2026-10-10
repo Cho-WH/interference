@@ -1,9 +1,10 @@
 import { assertLesson, validatePreset } from './validation';
 import type { ExperimentPreset, LessonSpec } from './types';
 import { DEFAULT_LESSON } from './default-lesson';
+import { LEGACY_WAVELENGTH_SCENES } from './legacy-default-scene7';
 export const LESSON_STORAGE_KEY = 'interference.teacher.lesson.v1';
 const POSITION_KEY = 'interference.teacher.position.v1';
-export interface SavedPosition { lessonId: string; revision: number; cueId: string; preset: ExperimentPreset; changed: boolean }
+export interface SavedPosition { lessonId: string; revision: number; cueId: string; preset: ExperimentPreset; changed: boolean; wavelengthReference?: ExperimentPreset }
 export function parseLesson(text: string): LessonSpec {
   if (text.length > 500_000) throw new Error('수업 파일은 500KB 이내여야 합니다.');
   const value: unknown = JSON.parse(text); assertLesson(value); return value;
@@ -16,8 +17,14 @@ export function loadLesson(storage: Storage = localStorage): LessonSpec | undefi
   if (!text) return;
   const lesson = parseLesson(text);
   // Upgrade only an untouched built-in revision. Never replace teacher edits.
-  if (lesson.id === DEFAULT_LESSON.id && [4, 5].includes(lesson.revision)) {
+  if (lesson.id === DEFAULT_LESSON.id && [4, 5, 6, 7].includes(lesson.revision)) {
     const previous = structuredClone(DEFAULT_LESSON); previous.revision = lesson.revision;
+    delete previous.wavelengthChange;
+    previous.experiments = { ...previous.experiments, C: { probe: { x: .8491202337626307, y: .238125 }, wavelength: .075, separation: .30 } };
+    previous.scenes = previous.scenes.map(scene => scene.id === 'scene-7' ? structuredClone(LEGACY_WAVELENGTH_SCENES[lesson.revision === 7 ? 7 : 6]) : scene);
+    if (lesson.revision === 7) return JSON.stringify(lesson) === JSON.stringify(previous) ? structuredClone(DEFAULT_LESSON) : lesson;
+    previous.scenes[5].cues[5].nextAction = { label: '조건 A로 · 파장 변경 예측', clockIntent: 'preserve' };
+    if (lesson.revision === 6) return JSON.stringify(lesson) === JSON.stringify(previous) ? structuredClone(DEFAULT_LESSON) : lesson;
     previous.scenes[2].cues[0].nextAction = { ...previous.scenes[2].cues[0].nextAction!, label: '크게 비교하기' };
     previous.scenes[3].cues[0].label = '크게 비교';
     previous.scenes[5].cues[2].teacherNotes = '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.';
@@ -42,7 +49,8 @@ export function loadPosition(lesson: LessonSpec, storage: Storage = localStorage
   if (!text) return;
   const value = JSON.parse(text) as SavedPosition;
   if (value?.lessonId !== lesson.id || value.revision !== lesson.revision ||
-    !lesson.scenes.some(s => s.cues.some(c => c.id === value.cueId)) || validatePreset(value.preset, 'preset').length) return;
+    !lesson.scenes.some(s => s.cues.some(c => c.id === value.cueId)) || validatePreset(value.preset, 'preset').length ||
+    value.wavelengthReference !== undefined && validatePreset(value.wavelengthReference, 'wavelengthReference').length) return;
   return value;
 }
 export function exportLesson(lesson: LessonSpec) {

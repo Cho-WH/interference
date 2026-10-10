@@ -6,6 +6,10 @@ import { parseLesson, saveLesson, loadLesson, LESSON_STORAGE_KEY } from '../src/
 import { createLessonDraft } from '../src/lesson/editor-model';
 import { flattenLesson } from '../src/lesson/types';
 import { teachingCopy } from '../src/lesson/teaching-copy';
+import { readFileSync } from 'node:fs';
+import type { LessonSpec } from '../src/lesson/types';
+
+const previousDefault = (): LessonSpec => JSON.parse(readFileSync(new URL('./fixtures/default-lesson-v6.json', import.meta.url), 'utf8'));
 
 test('full lesson roundtrips without runtime state, scripts or unsupported fields', () => {
   assert.deepEqual(validateLesson(DEFAULT_LESSON), []);
@@ -17,10 +21,13 @@ test('full lesson roundtrips without runtime state, scripts or unsupported field
     assert.throws(() => parseLesson(JSON.stringify(draft)));
   }
 });
-test('unsafe holds, ordering and half-wavelength prerequisites are rejected', () => {
+test('unsafe holds, ordering and double-wavelength prerequisites are rejected', () => {
   for (const edit of [
-    (v: any) => { v.scenes[6].cues[2].waitFor.holdCueId = 's7-c-sum'; },
-    (v: any) => { v.scenes[6].cues[1].waitFor = { scope: 'analysis-steady', holdCueId: 's7-c-paths' }; },
+    (v: any) => { v.scenes[6].cues.find((c: any) => c.id === 's7-c-paths').waitFor.holdCueId = 's7-c-sum'; },
+    (v: any) => { v.scenes[6].cues.find((c: any) => c.id === 's7-c-change').waitFor = { scope: 'analysis-steady', holdCueId: 's7-c-paths' }; },
+    (v: any) => { v.scenes[6].cues.find((c: any) => c.id === 's7-b-predict').nextAction.clockIntent = 'preserve'; },
+    (v: any) => { v.scenes[6].cues.find((c: any) => c.id === 's7-c-change').visible = ['path-1', 'path-2']; },
+    (v: any) => { delete v.scenes[6].cues.find((c: any) => c.id === 's7-c-parallel').waitFor; },
     (v: any) => { v.experiments.C.probe.x = .5; },
     (v: any) => { v.scenes[5].cues.reverse(); },
     (v: any) => { v.scenes[5].cues.find((c: any) => c.id === 's6-b-space').revealPolicy = 'explain'; },
@@ -72,8 +79,24 @@ test('failed import/storage validation preserves a previous saved lesson', () =>
   assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
 });
 
-test('untouched saved revision 5 receives fixed-scale lesson labels, but teacher edits survive', () => {
-  const legacy = structuredClone(DEFAULT_LESSON); legacy.revision = 5;
+test('untouched saved revision 6 receives spatial wavelength observation, but teacher edits survive', () => {
+  const legacy = previousDefault();
+  const storage = { getItem: (key: string) => key === LESSON_STORAGE_KEY ? JSON.stringify(legacy) : null } as Storage;
+  assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
+  legacy.scenes[6].cues[0].question = '교사가 수정한 파장 질문';
+  assert.deepEqual(loadLesson(storage), legacy);
+});
+
+test('untouched saved revision 7 receives the B doubling flow, but authored revisions survive', () => {
+  const legacy = JSON.parse(readFileSync(new URL('./fixtures/default-lesson-v7.json', import.meta.url), 'utf8'));
+  const storage = { getItem: (key: string) => key === LESSON_STORAGE_KEY ? JSON.stringify(legacy) : null } as Storage;
+  assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
+  legacy.scenes[6].cues[0].question = '교사가 바꾼 질문';
+  assert.deepEqual(loadLesson(storage), legacy);
+});
+
+test('untouched saved revision 5 receives the latest default, but teacher edits survive', () => {
+  const legacy = previousDefault(); legacy.revision = 5;
   legacy.scenes[2].cues[0].nextAction = { ...legacy.scenes[2].cues[0].nextAction!, label: '크게 비교하기' };
   legacy.scenes[3].cues[0].label = '크게 비교';
   legacy.scenes[5].cues[2].teacherNotes = '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.';
@@ -84,7 +107,7 @@ test('untouched saved revision 5 receives fixed-scale lesson labels, but teacher
 });
 
 test('untouched saved revision 4 receives the spatial B background, but teacher edits survive', () => {
-  const legacy = structuredClone(DEFAULT_LESSON); legacy.revision = 4;
+  const legacy = previousDefault(); legacy.revision = 4;
   legacy.scenes[2].cues[0].nextAction = { ...legacy.scenes[2].cues[0].nextAction!, label: '크게 비교하기' };
   legacy.scenes[3].cues[0].label = '크게 비교';
   legacy.scenes[5].cues[2].teacherNotes = '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.';

@@ -3,7 +3,7 @@ import { createLessonModel } from './default-lesson';
 import { flattenLesson, type LessonSpec, type LessonState, type SemanticId, type TeacherOverride, type ExperimentPreset } from './types';
 import { assertLesson } from './validation';
 import { meetsValidity, resolveVisibility } from './reveal-policy';
-import { sourceSeparation } from '../model/state';
+import { LIMITS, sourceSeparation } from '../model/state';
 
 export const currentPreset = (experiment: ExperimentController): ExperimentPreset => ({
   probe: { ...experiment.model.probe }, wavelength: experiment.model.wavelength, separation: sourceSeparation(experiment.model),
@@ -15,7 +15,7 @@ export function createLessonRunner(source: LessonSpec, options: {
   experiment: ExperimentController; now: () => number;
   transitionActive?: () => boolean; finishTransition?: () => void; replayTransition?: () => void;
   beforeChange?: () => void; onChange?: (state: LessonState) => void;
-  initialCueId?: string; initialPreset?: ExperimentPreset;
+  initialCueId?: string; initialPreset?: ExperimentPreset; initialWavelengthReference?: ExperimentPreset;
 }) {
   assertLesson(source);
   // Execution owns a detached copy. Editing never silently changes this run.
@@ -24,16 +24,38 @@ export function createLessonRunner(source: LessonSpec, options: {
   let index = Math.max(0, positions.findIndex(p => p.cue.id === options.initialCueId));
   let runId = 1, contextEntryId = 0, blackOut = false, exploring = false, disposed = false;
   let override: TeacherOverride = {};
+  const wavelengthChange = lesson.wavelengthChange;
+  let wavelengthReference = options.initialWavelengthReference ? structuredClone(options.initialWavelengthReference) :
+    wavelengthChange ? structuredClone(lesson.experiments[wavelengthChange.fromContextId]) : undefined;
+  let entryError: string | undefined;
   let returnPoint: { index: number; preset: ExperimentPreset } | undefined;
   const operations = new Set<string>();
   const entries: { id: number; context: string; skipped: boolean }[] = [];
   const validity = () => experiment.readBundle().validity;
   const state = (): LessonState => ({ ...positions[index], index, total: positions.length,
     canPrevious: index > 0 && !exploring,
-    canNext: index < positions.length - 1 && !exploring && (positions[index + 1].cue.experimentContextId !== positions[index].cue.experimentContextId || meetsValidity(positions[index + 1].cue, validity())),
+    canNext: index < positions.length - 1 && !exploring && !entryBlocked(positions[index + 1].cue.experimentContextId) &&
+      (positions[index + 1].cue.experimentContextId !== positions[index].cue.experimentContextId || meetsValidity(positions[index + 1].cue, validity())),
   });
   function notify() { if (!disposed) options.onChange?.(state()); }
-  function applyEntry(context: string, reset = false, preset = lesson.experiments[context]) {
+  function entryPreset(context: string, fromContext?: string): ExperimentPreset {
+    if (wavelengthChange && context === wavelengthChange.toContextId) {
+      const before = fromContext === wavelengthChange.fromContextId ? currentPreset(experiment) : wavelengthReference!;
+      return { ...before, probe: { ...before.probe }, wavelength: before.wavelength * wavelengthChange.factor };
+    }
+    if (wavelengthChange && context === wavelengthChange.fromContextId && fromContext === wavelengthChange.toContextId)
+      return structuredClone(wavelengthReference!);
+    return lesson.experiments[context];
+  }
+  function entryBlocked(context: string) {
+    if (!wavelengthChange || context !== wavelengthChange.toContextId || positions[index].cue.experimentContextId === context) return;
+    const preset = entryPreset(context, positions[index].cue.experimentContextId);
+    if (preset.wavelength < LIMITS.wavelength[0] || preset.wavelength > LIMITS.wavelength[1])
+      return `파장을 ${wavelengthChange.factor}배로 바꾸려면 현재 파장을 ${(Math.max(LIMITS.wavelength[0], LIMITS.wavelength[0] / wavelengthChange.factor) * 100).toFixed(0)}~${(Math.min(LIMITS.wavelength[1], LIMITS.wavelength[1] / wavelengthChange.factor) * 100).toFixed(0)}cm로 조절해 주세요.`;
+  }
+  function applyEntry(context: string, reset = false, preset = entryPreset(context), fromContext?: string) {
+    if (wavelengthChange && context === wavelengthChange.toContextId && fromContext === wavelengthChange.fromContextId)
+      wavelengthReference = currentPreset(experiment);
     const entry = ++contextEntryId;
     const key = runId + ':' + entry + ':apply-preset';
     if (operations.has(key)) return;
@@ -42,20 +64,29 @@ export function createLessonRunner(source: LessonSpec, options: {
     else experiment.applyPreset(preset, options.now());
     entries.push({ id: entry, context, skipped: false });
   }
+  function restoreEntry() {
+    const context = positions[index].cue.experimentContextId;
+    if (wavelengthChange && context === wavelengthChange.toContextId)
+      wavelengthReference = structuredClone(lesson.experiments[wavelengthChange.fromContextId]);
+    applyEntry(context, false, lesson.experiments[context]);
+  }
   function move(nextIndex: number, forward = false) {
     if (disposed || exploring || nextIndex < 0 || nextIndex >= positions.length || nextIndex === index) return false;
     const from = positions[index].cue, target = positions[nextIndex].cue;
     const crossing = from.experimentContextId !== target.experimentContextId;
+    const blocked = crossing ? entryBlocked(target.experimentContextId) : undefined;
+    if (blocked) { entryError = blocked; notify(); return false; }
     if (forward && !crossing && !meetsValidity(target, validity())) return false;
+    const preset = crossing ? entryPreset(target.experimentContextId, from.experimentContextId) : undefined;
     options.beforeChange?.();
     // Clear all temporary disclosure before the single atomic experiment command.
-    override = {};
+    override = {}; entryError = undefined;
     index = nextIndex;
     if (forward) {
       const intent = from.nextAction?.clockIntent;
       if (intent && intent !== 'preserve') experiment.setPlaying(intent === 'play-explicit', options.now());
     }
-    if (crossing) applyEntry(target.experimentContextId);
+    if (crossing) applyEntry(target.experimentContextId, false, preset, from.experimentContextId);
     if (!meetsValidity(target, validity())) index = positions.findIndex(p => p.cue.id === target.waitFor!.holdCueId);
     notify();
     return true;
@@ -69,6 +100,8 @@ export function createLessonRunner(source: LessonSpec, options: {
     get blackOut() { return blackOut; },
     get exploring() { return exploring; },
     get teacherOverride() { return override; },
+    get wavelengthReference() { return wavelengthReference ? structuredClone(wavelengthReference) : undefined; },
+    get blockedReason() { return (positions[index + 1] && entryBlocked(positions[index + 1].cue.experimentContextId)) ?? entryError; },
     get runId() { return runId; },
     get contextEntryId() { return contextEntryId; },
     get entries() { return entries.map(entry => ({ ...entry })); },
@@ -103,7 +136,7 @@ export function createLessonRunner(source: LessonSpec, options: {
         changeMode: 'propagate',
         constrainProbe: point => ({ x: Math.min(1.2, Math.max(0, point.x)), y: Math.min(.72, Math.max(0, point.y)) }),
       });
-      if (accepted) notify();
+      if (accepted) { entryError = undefined; notify(); }
       return accepted;
     },
     explore() {
@@ -115,12 +148,12 @@ export function createLessonRunner(source: LessonSpec, options: {
     returnToLesson(restore = false) {
       if (!returnPoint) return;
       options.beforeChange?.(); index = returnPoint.index; exploring = false; override = {};
-      if (restore) applyEntry(positions[index].cue.experimentContextId);
+      if (restore) restoreEntry();
       returnPoint = undefined; notify();
     },
     restoreLessonConditions() {
       options.beforeChange?.(); override = {};
-      applyEntry(positions[index].cue.experimentContextId); notify();
+      restoreEntry(); notify();
     },
     skipPropagation() {
       experiment.settle(options.now());
@@ -131,6 +164,8 @@ export function createLessonRunner(source: LessonSpec, options: {
       options.beforeChange?.(); options.finishTransition?.();
       if (!currentExample) index = 0;
       runId++; contextEntryId = 0; operations.clear(); entries.length = 0;
+      wavelengthReference = wavelengthChange ? structuredClone(lesson.experiments[wavelengthChange.fromContextId]) : undefined;
+      entryError = undefined;
       override = {}; exploring = false; returnPoint = undefined;
       applyEntry(positions[index].cue.experimentContextId, true);
       experiment.setRate(1, options.now()); experiment.setPlaying(true, options.now()); notify();

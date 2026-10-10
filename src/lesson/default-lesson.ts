@@ -4,7 +4,7 @@ import type { CueSpec, ExperimentPreset, LessonSpec, SemanticId } from './types'
 export const EXPERIMENTS: Record<string, ExperimentPreset> = {
   A: { probe: { x: .8491202337626307, y: .238125 }, wavelength: .15, separation: .30 },
   B: { probe: { x: .8357106264483345, y: .0975 }, wavelength: .15, separation: .30 },
-  C: { probe: { x: .8491202337626307, y: .238125 }, wavelength: .075, separation: .30 },
+  C: { probe: { x: .8357106264483345, y: .0975 }, wavelength: .30, separation: .30 },
 };
 export function createLessonModel(preset: ExperimentPreset = EXPERIMENTS.A) {
   let model = updateModel(createModel(), { type: 'probe', position: preset.probe });
@@ -19,7 +19,6 @@ const extra: SemanticId[] = [...common, 'path-difference'];
 const ruler: SemanticId[] = [...extra, 'wavelength-ruler'];
 const values: SemanticId[] = [...ruler, 'distance-values'];
 const components: SemanticId[] = [...values, 'endpoint-links', 'component-1', 'component-2'];
-const prediction: SemanticId[] = [...sources, 'path-baselines', 'distance-values', 'condition-values', 'same-probe-label'];
 
 function cue(id: string, label: string, question: string, next: string | undefined,
   options: Partial<CueSpec> = {}): CueSpec {
@@ -32,10 +31,11 @@ function cue(id: string, label: string, question: string, next: string | undefin
 const waiting = (holdCueId: string) => ({ scope: 'analysis-steady' as const, holdCueId });
 
 export const DEFAULT_LESSON: LessonSpec = {
-  schemaVersion: 1, id: 'path-difference-lesson', revision: 6,
+  schemaVersion: 1, id: 'path-difference-lesson', revision: 8,
   engineContract: 'wave-frame-v1', modelProfile: 'equal-phase-equal-amplitude-v1',
   title: '두 파동이 모두 도착하는데, 왜 P는 진동하지 않을까?',
   motionSpeed: 'normal', experiments: EXPERIMENTS,
+  wavelengthChange: { fromContextId: 'B', toContextId: 'C', factor: 2 },
   scenes: [
     { id: 'scene-1', title: '전체 현상', cues: [
       cue('s1-field', '겹치는 두 파동', '두 파동이 겹치면 모든 곳이 더 크게 진동할까요?', 'P의 진동 보기',
@@ -105,22 +105,43 @@ export const DEFAULT_LESSON: LessonSpec = {
       cue('s6-b-paths', '경로와 성분 확인', '한 주기를 더 온 두 성분은 어떤 관계인가요?', '합 공개',
         { experimentContextId: 'B', layout: 'endpoint-comparison', visible: components, revealPolicy: 'predict-sum',
           waitFor: waiting('s6-b-predict'), teacherNotes: '추가 한 파장은 한 주기입니다. 합을 공개하기 전에 설명을 듣습니다.' }),
-      cue('s6-b-sum', '예측 확인', '경로차 한 파장과 큰 합성 진동을 연결해 보세요.', '조건 A로 · 파장 변경 예측',
+      cue('s6-b-sum', '예측 확인', '경로차 한 파장과 큰 합성 진동을 연결해 보세요.', '공간으로 돌아가기',
         { experimentContextId: 'B', layout: 'endpoint-comparison', visible: [...components, 'resultant'],
           waitFor: waiting('s6-b-predict') }),
     ] },
-    { id: 'scene-7', title: '같은 P, 다른 파장', cues: [
-      cue('s7-a-predict', '파장 변경 예측', '같은 경로차 7.5cm에서 파장을 절반으로 바꾸면?', '파장 절반으로',
-        { visible: prediction, revealPolicy: 'predict-from-paths', allowedInputs: [],
-          teacherNotes: '현재 파장 15cm, 다음 파장 7.5cm를 구별합니다. P와 파원 간격은 유지합니다.' }),
-      cue('s7-c-change', '새 조건의 도착 대기', 'P는 그대로입니다. 새 파장이 도착하기를 기다려 보세요.', '결과 확인',
-        { experimentContextId: 'C', visible: prediction, revealPolicy: 'predict-from-paths', allowedInputs: [],
-          teacherNotes: '정지 중에는 변화도 도착하지 않습니다. 재생하거나 변화 과정 생략을 명시적으로 선택합니다. 도착해도 자동 공개하지 않습니다.' }),
-      cue('s7-c-paths', '바뀐 파장과 성분', '같은 7.5cm에 이제 몇 파장이 들어가나요?', '합 공개',
-        { experimentContextId: 'C', layout: 'endpoint-comparison', visible: components, revealPolicy: 'predict-sum',
+    { id: 'scene-7', title: '같은 경로차, 두 배 파장', cues: [
+      cue('s7-b-space', '파장 변경 전 공간 복귀', '지금 비교한 경로를 접고 파동 무늬를 다시 볼까요?', '파장 변경 예측',
+        { experimentContextId: 'B', layout: 'field', transition: 'fold-to-field',
+          visible: ['field', ...paths, 'local-probe-result'],
+          teacherNotes: '현재 P·파장·파원 간격을 유지한 채 접습니다. 이후에도 이 P에서 탐구를 이어갑니다.' }),
+      cue('s7-b-predict', '파장 두 배 예측', '지금은 한 파장 차이입니다. 파장을 두 배로 늘리면 P는 어떻게 진동할까요?', '파장 두 배로 · 재생',
+        { experimentContextId: 'B', layout: 'field', visible: ['field', ...paths, 'condition-values'],
+          revealPolicy: 'predict-sum', allowedInputs: [], overrideable: [],
+          nextAction: { label: '파장 두 배로 · 재생', clockIntent: 'play-explicit' },
+          teacherNotes: '파장 15cm의 무늬를 보며 예측합니다. 다음 동작에서 P·경로차·파원 간격을 유지하고 파장만 30cm로 늘리며 재생합니다.' }),
+      cue('s7-c-change', '두 배 파장의 공간 무늬', 'P는 그대로입니다. 파장이 길어지면 이곳의 진동은 어떻게 달라지나요?', '멈추고 펼치기',
+        { experimentContextId: 'C', layout: 'field', visible: ['field', ...paths, 'condition-values'],
+          revealPolicy: 'predict-sum', allowedInputs: [], overrideable: [],
+          nextAction: { label: '멈추고 펼치기', clockIntent: 'pause-explicit' },
+          teacherNotes: '파원에서 새 파장이 퍼지는 모습을 관찰합니다. 해석 범위에 도착해도 자동 진행하지 않습니다. 같은 P 주변의 무늬를 충분히 본 뒤 펼칩니다.' }),
+      cue('s7-c-parallel', '두 배 파장의 경로 펼치기', '두 경로의 길이는 그대로인데, 파형은 어떻게 달라졌나요?', '이전·지금 파장 비교',
+        { experimentContextId: 'C', layout: 'parallel', transition: 'unfold-in-place',
+          revealPolicy: 'predict-sum', allowedInputs: [], waitFor: waiting('s7-c-change') }),
+      cue('s7-c-compare', '한 파장에서 반 파장으로', '같은 경로차가 이전에는 한 파장, 지금은 왜 반 파장일까요?', '도착 성분 비교',
+        { experimentContextId: 'C', transition: 'fit-paths', visible: [...extra, 'distance-values', 'wavelength-comparison'],
+          revealPolicy: 'predict-sum', allowedInputs: [], overrideable: [], waitFor: waiting('s7-c-change'),
+          teacherNotes: '짧은 경로 끝부터 긴 경로 끝까지 같은 15cm를 두 눈금에 나란히 표시합니다. 이전 λ₀=15cm에서는 1λ₀, 지금 λ=30cm에서는 ½λ입니다. 점선 사인파는 정지한 파장 기준이며 과거 시각의 파동이 아닙니다.' }),
+      cue('s7-c-paths', '반 파장 차이의 두 성분', '반 파장 차이로 도착한 두 성분은 어떤 관계인가요?', '재생하며 관찰',
+        { experimentContextId: 'C', layout: 'endpoint-comparison', transition: 'focus-endpoints',
+          visible: [...components.filter(id => id !== 'wavelength-ruler'), 'wavelength-comparison'], revealPolicy: 'predict-sum',
+          nextAction: { label: '재생하며 관찰', clockIntent: 'play-explicit' }, waitFor: waiting('s7-c-change') }),
+      cue('s7-c-components-playing', '반대 위상의 성분 재생', '두 성분의 변위를 매 순간 더하면 어떻게 될까요?', '합 공개',
+        { experimentContextId: 'C', layout: 'endpoint-comparison',
+          visible: [...components.filter(id => id !== 'wavelength-ruler'), 'wavelength-comparison'], revealPolicy: 'predict-sum',
           waitFor: waiting('s7-c-change') }),
-      cue('s7-c-sum', '같은 P의 새로운 합', '거리차가 같아도 결과가 달라진 이유는 무엇인가요?', '전체로 돌아가기',
-        { experimentContextId: 'C', layout: 'endpoint-comparison', visible: [...components, 'resultant'],
+      cue('s7-c-sum', '보강에서 상쇄로', '같은 경로차인데 보강 간섭에서 상쇄 간섭으로 바뀐 이유는 무엇인가요?', '전체로 돌아가기',
+        { experimentContextId: 'C', layout: 'endpoint-comparison',
+          visible: [...components.filter(id => id !== 'wavelength-ruler'), 'wavelength-comparison', 'resultant'],
           waitFor: waiting('s7-c-change') }),
     ] },
     { id: 'scene-8', title: '전체 현상으로 돌아가기', cues: [

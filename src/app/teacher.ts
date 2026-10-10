@@ -23,7 +23,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   let laser = false, speed: MotionSpeed = 'normal', freeUnfolded = false, notice = '';
   let palette: PaletteId = DEFAULT_PALETTE;
   let editor: ReturnType<typeof createLessonEditor> | undefined, preview: { lesson: LessonSpec; cue: CueSpec } | undefined;
-  let rehearsing = false, savedRun: { lesson: LessonSpec; cueId: string; preset: ExperimentPreset } | undefined;
+  let rehearsing = false, savedRun: { lesson: LessonSpec; cueId: string; preset: ExperimentPreset; wavelengthReference?: ExperimentPreset } | undefined;
   let rehearsalPreset: ExperimentPreset | undefined, bookmark: SavedPosition | undefined;
   let initial = DEFAULT_LESSON;
   try { initial = loadLesson() ?? DEFAULT_LESSON; bookmark = loadPosition(initial); }
@@ -54,14 +54,14 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     refreshPhysics = true;
     if (!preview && !rehearsing && runner) {
       try { savePosition({ lessonId: runner.lesson.id, revision: runner.lesson.revision, cueId: runner.state.cue.id,
-        preset: currentPreset(experiment), changed: runner.changedConditions }); }
+        preset: currentPreset(experiment), changed: runner.changedConditions, wavelengthReference: runner.wavelengthReference }); }
       catch { notice = '이 브라우저에 위치를 저장할 수 없습니다. 수업은 계속할 수 있습니다.'; }
     }
     requestRender();
   }
-  function createRun(lesson: LessonSpec, cueId?: string, preset?: ExperimentPreset) {
+  function createRun(lesson: LessonSpec, cueId?: string, preset?: ExperimentPreset, wavelengthReference?: ExperimentPreset) {
     runner?.dispose(); preview = undefined;
-    runner = createLessonRunner(lesson, { experiment, now: () => performance.now(), initialCueId: cueId, initialPreset: preset,
+    runner = createLessonRunner(lesson, { experiment, now: () => performance.now(), initialCueId: cueId, initialPreset: preset, initialWavelengthReference: wavelengthReference,
       beforeChange, onChange: changed, transitionActive: stage.transitionActive,
       finishTransition: stage.finishTransition, replayTransition: stage.replayTransition });
     speed = lesson.motionSpeed; refreshPhysics = true; cuePending = true; cadence.reset(); requestRender();
@@ -70,7 +70,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
 
   function showEditor(lesson = runner.lesson) {
     if (!editor) {
-      savedRun = { lesson: runner.lesson, cueId: runner.state.cue.id, preset: currentPreset(experiment) };
+      savedRun = { lesson: runner.lesson, cueId: runner.state.cue.id, preset: currentPreset(experiment), wavelengthReference: runner.wavelengthReference };
       editor = createLessonEditor(editorHost, lesson, {
         preview(lesson, cue) {
           preview = { lesson, cue }; speed = lesson.motionSpeed;
@@ -86,7 +86,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
         },
         close() {
           const saved = savedRun!; closeEditorDom(); rehearsing = false; rehearsalPreset = undefined; savedRun = undefined;
-          createRun(saved.lesson, saved.cueId, saved.preset); notice = '편집 전 입력 조건에서 새 실험을 시작했습니다.';
+          createRun(saved.lesson, saved.cueId, saved.preset, saved.wavelengthReference); notice = '편집 전 입력 조건에서 새 실험을 시작했습니다.';
         },
         currentPreset: () => rehearsalPreset ?? currentPreset(experiment),
       });
@@ -121,7 +121,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
       const cueId = editor.cueId; showEditor(); editor.select(cueId);
     }
     else if (action === 'freeLayout') { freeUnfolded = !freeUnfolded; refreshPhysics = true; }
-    else if (action === 'resume' && bookmark) { createRun(runner.lesson, bookmark.cueId, bookmark.preset); notice = '저장한 입력 조건에서 새 실험을 시작했습니다.'; bookmark = undefined; }
+    else if (action === 'resume' && bookmark) { createRun(runner.lesson, bookmark.cueId, bookmark.preset, bookmark.wavelengthReference); notice = '저장한 입력 조건에서 새 실험을 시작했습니다.'; bookmark = undefined; }
     else if (action === 'exit') { const url = new URL(location.href); url.searchParams.delete('mode'); location.assign(url.href); }
     requestRender();
   }
@@ -145,7 +145,7 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     if (!runner.exploring) return cue;
     return { ...cue, id: 'explore-' + cue.id + (freeUnfolded ? '-parallel' : '-space'),
       layout: freeUnfolded ? 'path-comparison' : 'spatial-paths', transition: freeUnfolded ? 'unfold-in-place' : 'fold-to-field',
-      visible: SEMANTIC_IDS.filter(id => id !== 'rule' && id !== 'path-baselines' && id !== 'condition-values'),
+      visible: SEMANTIC_IDS.filter(id => id !== 'rule' && id !== 'path-baselines' && id !== 'condition-values' && id !== 'wavelength-comparison'),
       revealPolicy: 'explain', showQuestion: true, question: 'P와 파장을 바꾸며 경로차와 진동을 관찰해 보세요.',
       allowedInputs: ['probe', 'wavelength', 'separation'] };
   }
@@ -191,12 +191,16 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     const copy = preview ? teachingCopy(preview.cue, preview.lesson, false) :
       runner.exploring ? { question: cue.question, notes: cue.teacherNotes } : teachingCopy(cue, runner.lesson, runner.changedConditions);
     const question = copy.question;
+    const lesson = preview?.lesson ?? runner.lesson, wavelengthChange = lesson.wavelengthChange;
+    const referenceWavelength = preview ? wavelengthChange && lesson.experiments[wavelengthChange.fromContextId].wavelength : runner.wavelengthReference?.wavelength;
+    const plannedWavelength = wavelengthChange && cue.experimentContextId === wavelengthChange.fromContextId &&
+      cue.nextAction?.clockIntent === 'play-explicit' ? frame.snapshot.model.wavelength * wavelengthChange.factor : undefined;
     const { transitioning } = stage.render(frame, paths, cue, { now, playing: experiment.playing, reducedMotion, motionSpeed: speed,
-      validity: bundle.validity, visible, question, palette, allowedInputs: preview ? [] : cue.allowedInputs });
+      validity: bundle.validity, visible, question, palette, allowedInputs: preview ? [] : cue.allowedInputs, referenceWavelength, plannedWavelength });
     cuePending = false;
     const state = runner.state;
-    const waiting = !state.canNext && state.index < state.total - 1 && !runner.exploring
-      ? experiment.playing ? '새 조건이 도착하는 중입니다. 도착한 뒤 결과 확인을 눌러 주세요.' : '재생하면 새로운 조건이 도착합니다.' : undefined;
+    const waiting = runner.blockedReason ?? (!state.canNext && state.index < state.total - 1 && !runner.exploring
+      ? experiment.playing ? '새 조건이 도착하는 중입니다. 도착하면 다음 행동을 선택할 수 있습니다.' : '재생하면 새로운 조건이 도착합니다.' : undefined);
     shell.dataset.cue = state.cue.id; shell.dataset.context = state.cue.experimentContextId;
     shell.dataset.timeSeconds = String(frame.snapshot.clock.timeSeconds); shell.dataset.playing = String(experiment.playing);
     shell.dataset.transitioning = String(transitioning); shell.dataset.analysisSteady = String(bundle.validity.analysisSteady);

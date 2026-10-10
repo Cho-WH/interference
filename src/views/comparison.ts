@@ -4,6 +4,7 @@ import { createDisplacementMarker, pathFromPoints, setAttributes, setLine, setPo
 import { comparisonCopy, formatDistance } from '../ui/copy';
 import { createWavelengthRuler } from '../visual/wavelength-ruler';
 import { createSourceBadge } from '../visual/point-markers';
+import { createWavelengthComparison } from '../visual/wavelength-comparison';
 
 export type ComparisonRenderOptions = Readonly<{
   width: number;
@@ -21,6 +22,8 @@ export type ComparisonRenderOptions = Readonly<{
   /** One screen scale for the whole path drawing, including its glyphs. */
   presentationScale?: number;
   analysisSteady?: boolean;
+  /** Previous wavelength reference; both rulers use the current extra distance. */
+  referenceWavelength?: number;
 }>;
 
 export type ComparisonDisplay = Readonly<{
@@ -64,6 +67,7 @@ export function createComparisonView(svg: SVGSVGElement) {
   const extraBand = svgElement('rect', { height: 8, rx: 3, fill: '#bfdccf', 'data-extra-path-band': '', display: 'none' }, settledLayer);
   const differenceRulerGroup = svgElement('g', {}, settledLayer);
   const differenceRuler = createWavelengthRuler(differenceRulerGroup, 'data-path-difference-ruler');
+  const wavelengthComparison = createWavelengthComparison(settledLayer);
   const sameDistanceGuide = svgElement('line', { stroke: '#90aaa5', 'stroke-width': 1.2, 'stroke-opacity': .8, 'data-same-distance-guide': '' }, settledLayer);
   const longDistanceGuide = svgElement('line', { stroke: '#90aaa5', 'stroke-width': 1.2, 'stroke-opacity': .8, 'data-long-distance-guide': '' }, settledLayer);
   const auxiliaryPoint = svgElement('circle', { r: 5, fill: 'white', 'stroke-width': 2, 'data-same-distance-point': '' }, settledLayer);
@@ -121,7 +125,7 @@ export function createComparisonView(svg: SVGSVGElement) {
       setAttributes(settledLayer, { display: settled ? null : 'none', opacity: options.guideOpacity });
       setAttributes(pointPanel, { x: pointX - 18, y: rowZeros[0] - 25, width: sumX - pointX + 36, height: rowZeros[1] - rowZeros[0] + 50 });
       setAttributes(title, { x: offsetX + options.width - 20, y: options.fieldHeight + 16 });
-      setAttributes(sumLabel, { x: sumX, y: sumZeroY - 51 });
+      setAttributes(sumLabel, { x: sumX, y: sumZeroY - 51, 'text-anchor': 'middle' });
       setAttributes(pathDifference, { x: startX, y: options.fieldHeight + options.comparisonHeight - 8 });
       pathDifference.textContent = canCompare ? `${comparisonCopy.pathDifference} ${formatDistance(Math.abs(probe.signedPathDifference))}` : '각 위치의 현재 파형';
       const keyY = rowZeros[0] - 42;
@@ -201,6 +205,10 @@ export function createComparisonView(svg: SVGSVGElement) {
       const shortY = rowZeros[shortIndex] - probe.componentDisplacements[shortIndex] * displacementScale;
       setLine(sameDistanceGuide, { x: commonX, y: shortY }, { x: commonX, y: auxiliaryY });
       const longX = startX + probe.distances[longIndex] * layout.distanceScale;
+      const compareWavelengths = canCompare && settled && options.referenceWavelength !== undefined;
+      wavelengthComparison.render({ startX: commonX, endX: longX, centerY: (rowZeros[0] + rowZeros[1]) / 2,
+        distanceScale: layout.distanceScale, previousWavelength: options.referenceWavelength,
+        currentWavelength: model.wavelength, visible: compareWavelengths, compact: layout.compact });
       const longY = rowZeros[longIndex] - probe.componentDisplacements[longIndex] * displacementScale;
       // The long boundary meets the other row's existing endpoint link; it does
       // not extrapolate that row's wave beyond its actual observation distance.
@@ -214,7 +222,11 @@ export function createComparisonView(svg: SVGSVGElement) {
       // Equal paths still share a distance: their two endpoints must remain linked.
       setAttributes(sameDistanceGuide, { visibility: canCompare ? 'visible' : 'hidden' });
       markers[2].render(sumX, sumZeroY, probe.resultantDisplacement, displacementScale, model.sources[0].amplitude + model.sources[1].amplitude, markerAppearance);
-      zeroLabels.forEach((label, index) => setAttributes(label, { x: (index === 2 ? sumX : pointX) + (options.presentation ? 12 * drawingScale + 10 : 17), y: (index === 2 ? sumZeroY : rowZeros[index]) + 4 }));
+      zeroLabels.forEach((label, index) => {
+        const x = (index === 2 ? sumX : pointX) + (options.presentation ? 12 * drawingScale + 10 : 17);
+        setAttributes(label, { x: options.presentation ? Math.min(x, options.width - 16) : x,
+          y: (index === 2 ? sumZeroY : rowZeros[index]) + 4 });
+      });
       // Ordinary exploration retains its existing bundled reveal. Teacher cues
       // independently gate semantic elements without creating another renderer.
       if (options.display) {
@@ -243,10 +255,10 @@ export function createComparisonView(svg: SVGSVGElement) {
         show(sameDistanceGuide, d.commonDistance && canCompare);
         show(auxiliaryPoint, d.commonDistance && canCompare && hasExtraPath);
         show(longDistanceGuide, d.extraPath && canCompare && hasExtraPath);
-        show(differenceRulerGroup, d.ruler && canCompare);
-        show(wavelengthMarkGroup, d.ruler && canCompare);
-        show(wavelengthLabel, d.ruler && d.values && canCompare);
-        show(extraBand, d.extraPath && canCompare && hasExtraPath && !d.ruler);
+        show(differenceRulerGroup, d.ruler && canCompare && !compareWavelengths);
+        show(wavelengthMarkGroup, d.ruler && canCompare && !compareWavelengths);
+        show(wavelengthLabel, d.ruler && d.values && canCompare && !compareWavelengths);
+        show(extraBand, d.extraPath && canCompare && hasExtraPath && !d.ruler && !compareWavelengths);
         setAttributes(extraBand, { x: commonX, y: (rowZeros[0] + rowZeros[1]) / 2 - 4 * drawingScale,
           width: Math.max(0, longX - commonX), height: 8 * drawingScale, rx: 3 * drawingScale });
         show(markers[2].group, d.resultant);
@@ -263,7 +275,8 @@ export function createComparisonView(svg: SVGSVGElement) {
           setAttributes(auxiliaryPoint, { r: 7 * drawingScale, 'stroke-width': 2 * drawingScale });
           setAttributes(sameDistanceGuide, { 'stroke-width': 2 * drawingScale });
           setAttributes(longDistanceGuide, { 'stroke-width': 2 * drawingScale });
-          setAttributes(sumLabel, { y: sumZeroY - 2 * layout.componentAmplitudePx - 22 });
+          setAttributes(sumLabel, { x: layout.compact ? Math.min(sumX + 16, options.width - 16) : sumX,
+            y: sumZeroY - 2 * layout.componentAmplitudePx - 22, 'text-anchor': layout.compact ? 'end' : 'middle' });
           setAttributes(sameDistanceKey, { cx: Math.max(32, startX + 4 * drawingScale), cy: rowZeros[0] - layout.componentAmplitudePx - (layout.compact ? 64 : 32) });
           setAttributes(sameDistanceLabel, { x: Math.max(50, startX + 14 * drawingScale), y: rowZeros[0] - layout.componentAmplitudePx - (layout.compact ? 60 : 28) });
           const narrow = options.width < 700;

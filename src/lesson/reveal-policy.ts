@@ -2,7 +2,7 @@ import type { CueSpec, FrameValidity, SemanticId, TeacherOverride } from './type
 
 const predictionMask: readonly SemanticId[] = ['field', 'path-1', 'path-2', 'component-1', 'component-2',
   'resultant', 'local-probe-result', 'same-distance-correspondence', 'endpoint-links', 'rule'];
-export const analysisInformation: readonly SemanticId[] = ['same-distance-correspondence', 'path-difference', 'wavelength-ruler', 'rule'];
+export const analysisInformation: readonly SemanticId[] = ['same-distance-correspondence', 'path-difference', 'wavelength-ruler', 'wavelength-comparison', 'rule'];
 
 /** One policy feeds pixels, accessible text and readouts. Overrides never bypass it. */
 export function resolveVisibility(cue: CueSpec, validity: FrameValidity, override: TeacherOverride = {}): ReadonlySet<SemanticId> {

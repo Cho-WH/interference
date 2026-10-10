@@ -18,14 +18,19 @@
 .teacher-correspondence-titles { position:absolute; top:174px; left:6%; right:6%; display:grid; grid-template-columns:1fr 1fr; gap:4%; font-size:21px; z-index:4; }
 .teacher-reduced-toggle,.teacher-full-paths { position:absolute; z-index:5; right:5%; bottom:58px; border:1px solid #b7c9ce; border-radius:8px; background:#fff; color:#204552; min-height:44px; padding:8px 16px; font:inherit; }
 .teacher-stage [data-view="comparison"] text { font-size:20px; }
+.teacher-stage [data-wavelength-comparison] text { font-size:20px; }
+.teacher-stage [data-wavelength-reference-ratio] { font-size:22px; }
 .teacher-stage [data-path-distance],.teacher-stage [data-path-difference-label] { font-size:26px; font-weight:650; letter-spacing:-.025em; }
 .teacher-stage [data-source-row] [data-wave-path] { paint-order:stroke; }
 .teacher-field-overlay [data-local-probe-result] text { font-size:20px; }
 .teacher-condition-values { position:absolute; z-index:4; left:5%; bottom:65px; margin:0; font-size:25px; font-weight:650; }
-.teacher-rule { position:absolute; inset:145px 8% 45px; z-index:4; display:flex; flex-direction:column; justify-content:center; gap:24px; padding:32px 48px; border:1px solid #dce7e3; border-radius:20px; background:#fcfdfbf5; box-shadow:0 18px 70px #0b273c1f; }
+.teacher-stage[data-field-visible="true"] .teacher-condition-values { max-width:90%; padding:6px 12px; border-radius:6px; color:#fff; background:#112733dc; line-height:1.5; }
+.teacher-rule { position:absolute; inset:145px 8% 45px; z-index:4; display:flex; flex-direction:column; justify-content:safe center; gap:24px; padding:32px 48px; border:1px solid #dce7e3; border-radius:20px; background:#fcfdfbf5; box-shadow:0 18px 70px #0b273c1f; overflow:auto; }
 .teacher-rule p { margin:0; font-size:22px; color:#526c79; }
-.teacher-rule strong { display:flex; align-items:baseline; justify-content:space-between; gap:20px; font-family:Cambria,Georgia,serif; font-size:clamp(26px,3.4vw,46px); font-weight:500; }
-.teacher-rule strong span { font:650 25px "Malgun Gothic",sans-serif; color:#674c94; }
+.teacher-rule section { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px 24px; }
+.teacher-rule h3 { grid-column:1/-1; margin:0; font-size:25px; font-weight:650; color:#674c94; }
+.teacher-rule math { font-family:"Cambria Math","STIX Two Math",math,serif; }
+.teacher-rule section>math { font-size:clamp(28px,3.4vw,46px); }
 .teacher-rule small { line-height:1.8; font-size:18px; color:#506471; }
 .teacher-status-strip { position:relative; display:flex; align-items:center; justify-content:center; gap:16px; height:32px; font-size:14px; color:#506570; padding:0 16px; border-top:1px solid #e3e9e6; overflow:hidden; }
 .teacher-status-strip button { border:0; background:transparent; font:inherit; color:#0b6676; text-decoration:underline; cursor:pointer; padding:5px; }
@@ -105,22 +110,28 @@
  .editor-workspace { grid-template-columns:180px minmax(300px,1fr) 240px; }
 }
 @media(max-width:750px) {
- .teacher-shell { grid-template-rows:minmax(400px,1fr) 40px 60px; }
- .teacher-controls { padding:8px; gap:4px; }
- .teacher-controls .teacher-position { width:44px; min-width:44px; font-size:0; padding:8px; }
+ .teacher-shell { grid-template-rows:minmax(400px,1fr) 40px 110px; }
+ .teacher-controls { display:grid; grid-template-columns:44px minmax(0,1fr) 72px 52px; grid-template-rows:44px 44px; padding:8px; gap:5px; }
+ .teacher-controls .teacher-position { grid-column:1; grid-row:1; width:44px; min-width:44px; font-size:0; padding:8px; }
  .teacher-position::after { content:'☰'; font-size:22px; }
- .teacher-primary-controls { flex:1; gap:5px; }
+ .teacher-primary-controls { display:contents; }
+ .teacher-controls [data-action="previous"] { grid-column:2; grid-row:1; }
+ .teacher-controls [data-action="play"] { grid-column:3; grid-row:1; }
+ .teacher-controls [data-action="tools"] { grid-column:4; grid-row:1; }
  .teacher-controls button { font-size:14px; padding:8px; }
- .teacher-controls .teacher-next { min-width:0; flex:1; font-size:14px; }
+ .teacher-controls .teacher-next { grid-column:1/-1; grid-row:2; min-width:0; font-size:14px; }
  .teacher-question { font-size:24px; padding:20px 24px; min-height:120px; }
  .teacher-correspondence-note { top:128px; right:24px; font-size:16px; }
  .teacher-representation-label { font-size:13px; max-width:90%; bottom:16px; }
  .teacher-condition-values { font-size:20px; bottom:78px; }
  .teacher-stage [data-view="comparison"] text { font-size:18px; }
+ .teacher-stage [data-wavelength-comparison] text { font-size:15px; }
+ .teacher-stage [data-wavelength-reference-ratio] { font-size:17px; }
  .teacher-stage [data-path-distance],.teacher-stage [data-path-difference-label] { font-size:21px; }
- .teacher-rule { inset:154px 20px 30px; padding:20px; gap:22px; }
- .teacher-rule strong { flex-wrap:wrap; gap:4px; }
- .teacher-rule strong span { font-size:20px; }
+ .teacher-rule { inset:154px 20px 30px; padding:20px; gap:18px; }
+ .teacher-rule section { grid-template-columns:1fr; gap:8px; }
+ .teacher-rule h3 { font-size:20px; }
+ .teacher-rule p { font-size:18px; }
  .teacher-rule small { font-size:15px; }
  .teacher-model-legend { font-size:16px; line-height:1.7; bottom:24px; }
  .teacher-status-strip { height:40px; font-size:12px; justify-content:flex-start; line-height:1.5; }

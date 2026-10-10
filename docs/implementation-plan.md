@@ -10,7 +10,7 @@
 
 ## 교사 수업 모드 v2
 
-[설계 v2](teacher-mode-design-v2.md)의 단계 1~3에 해당하는 핵심 연출, 전체 수업, 편집·저장을 구현했다. [구현 문서](teacher-mode.md)에 기능과 책임을 정리한다. 첫 회전 후 대기와 다음 클릭의 공통 확대를 분리하고, 8장면에서 예제 A/B/C를 전파 이력과 연결한다.
+[설계 v2](teacher-mode-design-v2.md)의 단계 1~3에 해당하는 핵심 연출, 전체 수업, 편집·저장을 구현했다. [구현 문서](teacher-mode.md)에 기능과 책임을 정리한다. 회전 후 대기와 다음 클릭의 행 배치를 분리하며 파형의 크기를 유지한다. 8장면에서 예제 A/B/C를 전파 이력과 연결한다. 파장 변경은 B의 P를 유지한 공간 복귀·기존 파장으로 예측·두 배 변경과 재생·공간 관찰·재펼침·이전과 현재 눈금 비교 순서로 진행한다. 같은 경로차가 1λ₀에서 ½λ로 바뀌며 보강에서 상쇄로 이어진다.
 
 관련 단위 검사: `experiment-controller.test.ts`, `lesson-runner.test.ts`, `lesson-storage.test.ts`, `teacher-layout.test.ts`, `teacher-observation.test.ts`. 공개 가림·예제 직접 이동·편집 리허설·반응형과 표시 일치는 `browser/teacher.spec.ts`에서 다룬다. 공통 뷰와 명령 경계를 바꾸었으므로 일반 모드 브라우저 검사도 영향 범위다.
 

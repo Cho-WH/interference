@@ -26,20 +26,20 @@ test('lesson A has a half-wavelength difference and stays cancelled over two com
   assert.ok(maximumComponent > .0099, 'each contribution vibrates even though the sum remains zero');
 });
 
-for (const id of ['B', 'C']) test('lesson ' + id + ' arrives in phase over two complete periods', () => {
+for (const id of ['B', 'C']) test('lesson ' + id + ' has the expected interference over two complete periods', () => {
   const model = createLessonModel(EXPERIMENTS[id]), experiment = createExperimentController({ model });
   experiment.advance(0);
   let peak = 0;
   for (let step = 0; step <= 64; step++) {
     experiment.advance(step / 32 * model.wavelength / model.speed * 1000);
     const { probe } = experiment.read().snapshot;
-    assert.ok(Math.abs(Math.abs(probe.signedPathDifference) / model.wavelength - 1) < 1e-12);
-    assert.equal(probe.interference, 'constructive');
-    assert.ok(Math.abs(probe.componentDisplacements[0] - probe.componentDisplacements[1]) < 1e-12);
-    assert.ok(Math.abs(probe.resultantDisplacement - 2 * probe.componentDisplacements[0]) < 1e-12);
+    assert.ok(Math.abs(Math.abs(probe.signedPathDifference) / model.wavelength - (id === 'B' ? 1 : .5)) < 1e-12);
+    assert.equal(probe.interference, id === 'B' ? 'constructive' : 'destructive');
+    assert.ok(Math.abs(probe.componentDisplacements[0] - (id === 'B' ? 1 : -1) * probe.componentDisplacements[1]) < 1e-12);
+    assert.ok(Math.abs(probe.resultantDisplacement - (id === 'B' ? 2 : 0) * probe.componentDisplacements[0]) < 1e-12);
     peak = Math.max(peak, Math.abs(probe.resultantDisplacement));
   }
-  assert.ok(peak > .0199);
+  assert.ok(id === 'B' ? peak > .0199 : peak < 1e-12);
 });
 
 test('animated observation reuses engine distances, phase and endpoints without mutating time or preset', () => {
