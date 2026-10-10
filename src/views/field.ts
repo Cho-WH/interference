@@ -1,15 +1,16 @@
 import type { FieldMode, FieldTransform, SourcePair, Vec2 } from '../model/types';
 import type { WaveFrame } from '../physics/engine';
 import { toScreen } from '../geometry/layout';
+import { FIELD_HANDLE_HIT_RADIUS, sourceGapHandle } from '../geometry/field-handles';
 
 import { formatDistance } from '../ui/copy';
-import { svgElement as element } from '../visual/svg';
+import { pathFromPoints, setAttributes, setLine, svgElement as element } from '../visual/svg';
 import type { PaletteId } from '../visual/field-palettes';
 import { createFieldSurface } from '../rendering/field-surface';
 const colors = ['#51dfce', '#ffb16b'] as const;
 
-export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, invalidate: () => void) {
-  const surface = createFieldSurface(canvas, invalidate);
+export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, invalidate: () => void, report?: (event: string, error?: unknown) => void) {
+  const surface = createFieldSurface(canvas, invalidate, report);
   const pathGroup = element('g', { 'aria-hidden': 'true' });
   const paths = colors.map((color, i) => {
     const line = element('line', { 'data-spatial-path': `source-${i + 1}`, stroke: color, 'stroke-width': '1.8', 'stroke-dasharray': i ? '7 4' : 'none', opacity: '.9' });
@@ -17,7 +18,7 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
     return line;
   });
   const labels = colors.map((color) => {
-    const group = element('g');
+    const group = element('g', { class: 'path-distance-label' });
     const bg = element('rect', { x: '-38', y: '-12', width: '76', height: '24', rx: '7', fill: '#102a37', opacity: '.92' });
     const text = element('text', { 'text-anchor': 'middle', y: '5', fill: color, 'font-size': '12', 'font-weight': '650' });
     group.append(bg, text); pathGroup.append(group);
@@ -30,7 +31,7 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
   function handle(id: string, label: string, glyph: string, color: string, probe = false) {
     const group = element('g', { class: 'interactive-handle', 'data-handle': id, tabindex: '0', role: 'button', 'aria-label': label, 'aria-keyshortcuts': 'ArrowUp ArrowDown ArrowLeft ArrowRight' });
     group.style.pointerEvents = 'all';
-    const hit = element('circle', { r: '24', fill: 'transparent' });
+    const hit = element('circle', { r: FIELD_HANDLE_HIT_RADIUS, fill: 'transparent' });
     const focus = element('circle', { class: 'handle-focus', r: '20', fill: 'none', stroke: '#fff', 'stroke-dasharray': '3 3', 'stroke-width': '1.5' });
     const ring = element('circle', { r: 12, fill: '#102a37', 'fill-opacity': probe ? .30 : 1, stroke: color, 'stroke-width': 2.5 });
     group.append(hit, focus, ring);
@@ -74,14 +75,11 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
       svg.setAttribute('viewBox', `0 0 ${transform.width} ${transform.height}`);
       const p = toScreen(snapshot.model.probe, transform);
       probeBounds.setAttribute('visibility', probeOutline ? 'visible' : 'hidden');
-      if (probeOutline) probeBounds.setAttribute('d', probeOutline.map((point, i) => {
-        const q = toScreen(point, transform); return `${i ? 'L' : 'M'}${q.x},${q.y}`;
-      }).join(' ') + 'Z');
-      const gapPoint = toScreen({ x: snapshot.model.sources[0].position.x, y: snapshot.model.bounds.height / 2 }, transform);
-      gap.setAttribute('transform', `translate(${gapPoint.x - 40},${gapPoint.y})`);
-      const closeSources = (snapshot.model.sources[1].position.y - snapshot.model.sources[0].position.y) * transform.scale < 32;
-      gap.setAttribute('visibility', closeSources ? 'visible' : 'hidden');
-      gap.setAttribute('tabindex', closeSources ? '0' : '-1');
+      if (probeOutline) probeBounds.setAttribute('d', pathFromPoints(probeOutline.map(point => toScreen(point, transform))) + 'Z');
+      const gapPoint = sourceGapHandle(snapshot.model, transform);
+      if (gapPoint) gap.setAttribute('transform', `translate(${gapPoint.x},${gapPoint.y})`);
+      gap.setAttribute('visibility', gapPoint ? 'visible' : 'hidden');
+      gap.setAttribute('tabindex', gapPoint ? '0' : '-1');
       probe.setAttribute('transform', `translate(${p.x},${p.y})`);
       const labelOnLeft = p.x > transform.width - 37;
       probeLabel.setAttribute('x', labelOnLeft ? '-19' : '19');
@@ -92,9 +90,9 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
         const target = targetPositions ? toScreen(targetPositions[i], transform) : s;
         sources[i].setAttribute('transform', `translate(${s.x},${s.y})`);
         sources[i].setAttribute('data-world-y', String(source.position.y));
-        for (const [key, value] of Object.entries({ cx: origin.x, cy: origin.y, visibility: Math.hypot(origin.x - s.x, origin.y - s.y) > 2 ? 'visible' : 'hidden' })) origins[i].setAttribute(key, String(value));
-        for (const [key, value] of Object.entries({ cx: target.x, cy: target.y, visibility: targetPositions ? 'visible' : 'hidden' })) targets[i].setAttribute(key, String(value));
-        for (const [key, value] of Object.entries({ x1: origin.x, y1: origin.y, x2: p.x, y2: p.y })) paths[i].setAttribute(key, String(value));
+        setAttributes(origins[i], { cx: origin.x, cy: origin.y, visibility: Math.hypot(origin.x - s.x, origin.y - s.y) > 2 ? 'visible' : 'hidden' });
+        setAttributes(targets[i], { cx: target.x, cy: target.y, visibility: targetPositions ? 'visible' : 'hidden' });
+        setLine(paths[i], origin, p);
         labels[i].group.setAttribute('transform', `translate(${origin.x + (p.x - origin.x) * .46},${origin.y + (p.y - origin.y) * .46 + (i ? 18 : -18)})`);
         labels[i].text.textContent = `${i + 1} · ${formatDistance(snapshot.probe.distances[i])}`;
       });

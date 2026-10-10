@@ -10,6 +10,29 @@ import { createClock } from '../src/runtime/clock';
 const TAU = 2 * Math.PI;
 const close = (actual: number, expected: number, epsilon = 1e-10) => assert.ok(Math.abs(actual - expected) < epsilon, `${actual} ≠ ${expected}`);
 
+test('field cache identities survive retained frames and invalidate on commands, previews and time', () => {
+  const model = createModel(), engine = createRetardedEngine(model);
+  const initial = engine.read(model.probe), key = initial.fieldCacheKey!('wave');
+  assert.equal(engine.read({ x: .6, y: .2 }).fieldCacheKey!('wave'), key);
+  engine.advanceTo(1);
+  const later = engine.read(model.probe);
+  assert.notEqual(later.fieldCacheKey!('wave'), key);
+  assert.equal(later.fieldCacheKey!('amplitude'), initial.fieldCacheKey!('amplitude'));
+  engine.setWavelength(.2);
+  const pending = engine.read(model.probe);
+  engine.advanceTo(2);
+  assert.notEqual(engine.read(model.probe).fieldCacheKey!('amplitude'), pending.fieldCacheKey!('amplitude'));
+  const live = engine.read(model.probe), preview = engine.read(model.probe, undefined,
+    { equilibriumSources: [{ x: .4, y: .09 }, { x: .4, y: .63 }] });
+  assert.notEqual(live.fieldCacheKey!('wave'), preview.fieldCacheKey!('wave'));
+  engine.settle();
+  assert.notEqual(engine.read(model.probe).fieldCacheKey!('wave'), live.fieldCacheKey!('wave'));
+  engine.reset(model);
+  assert.notEqual(engine.read(model.probe).fieldCacheKey!('wave'), key);
+  assert.equal(initial.fieldCacheKey!('wave'), key);
+  assert.notEqual(createRetardedEngine(model).read(model.probe).fieldCacheKey!('wave'), engine.read(model.probe).fieldCacheKey!('wave'));
+});
+
 test('transient interference envelope follows retarded phases and converges to steady amplitude', () => {
   const model = createModel(), engine = createRetardedEngine(model);
   const before = engine.read(model.probe).sampleField(13, 9, 'amplitude').values;
@@ -269,7 +292,15 @@ test('probe accepts finite world coordinates while source controls remain bounde
   const separated = updateModel(model, { type: 'separation', value: 10 });
   close(separated.sources[1].position.y - separated.sources[0].position.y, .54);
   assert.deepEqual(separated.sources.map(s => s.id), ['source-1', 'source-2']);
-  assert.equal(updateModel(model, { type: 'wavelength', value: NaN }), model);
+  const engine = createRetardedEngine(model), before = engine.read(model.probe);
+  for (const value of [NaN, Infinity, -Infinity]) {
+    assert.equal(updateModel(model, { type: 'wavelength', value }), model);
+    assert.equal(updateModel(model, { type: 'separation', value }), model);
+    engine.setWavelength(value);
+    const after = engine.read(model.probe);
+    assert.deepEqual(after.snapshot, before.snapshot);
+    assert.equal(after.fieldCacheKey!('wave'), before.fieldCacheKey!('wave'));
+  }
 });
 
 test('extended field retains old emissions through motion, wavelength edits and later viewport expansion', () => {

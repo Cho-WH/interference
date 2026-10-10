@@ -20,6 +20,15 @@ button, summary, input { touch-action: manipulation; }
 button, summary { -webkit-user-select: none; user-select: none; }
 button:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid #31a2a8; outline-offset: 3px; }
 [hidden] { display: none !important; }
+.failure-screen { width: min(560px, calc(100% - 40px)); margin: 10vh auto; line-height: 1.65; }
+.failure-screen h1 { font-size: 22px; }
+.failure-screen h1:focus { outline: none; }
+.failure-screen p { color: var(--muted); }
+.failure-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.failure-status { min-height: 1.65em; }
+.failure-screen details { border-top: 1px solid var(--line); padding-top: 16px; font-size: 13px; }
+.failure-screen summary { cursor: pointer; }
+.failure-screen textarea { display: block; width: 100%; height: 180px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; font: 12px/1.5 monospace; resize: vertical; }
 .app-shell { width: min(1000px, calc(100% - 32px)); margin: auto; padding: 12px 0; }
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; margin-bottom: 8px; position: sticky; top: 0; z-index: 10; background: #f5f5f0f5; }
 .app-heading { display: flex; align-items: center; gap: 9px; }
@@ -47,7 +56,7 @@ h1 { font-size: 22px; letter-spacing: -.05em; font-weight: 700; margin: 0; }
 .field { position: relative; height: clamp(210px, calc(100svh - 460px), 360px); border-radius: 8px; overflow: hidden; background: #0d222f; }
 .field canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .field-overlay, .comparison-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.field-overlay { touch-action: none; }
+.field-overlay { touch-action: none; pointer-events: auto; }
 .comparison-overlay { z-index: 2; }
 .field-overlay text, .comparison-overlay text { font-family: inherit; }
 .interactive-handle { pointer-events: all; cursor: grab; touch-action: none; outline: none; }
@@ -65,8 +74,6 @@ h1 { font-size: 22px; letter-spacing: -.05em; font-weight: 700; margin: 0; }
 }
 .comparison-region { height: 0; background: #fff; }
 .palette-picker { position: relative; z-index: 6; }
-.field-legend { display: flex; align-items: center; gap: 7px; padding: 3px 4px; min-height: 28px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: inherit; font-size: inherit; white-space: nowrap; }
-.field-legend:hover, .field-legend[aria-expanded="true"] { background: #eef4f1; border-color: #d7e5df; }
 .palette-swatch { display: inline-block; width: 52px; height: 9px; flex-shrink: 0; border-radius: 4px; box-shadow: inset 0 0 0 1px #16323f18; }
 .palette-options { position: fixed; width: 276px; max-width: calc(100vw - 44px); padding: 8px; border: 1px solid #dce5df; border-radius: 10px; background: #fff; box-shadow: 0 8px 30px #102a3729; }
 .palette-title { margin: 3px 7px 7px; font-size: 11px; color: #65767c; }
@@ -76,8 +83,6 @@ h1 { font-size: 22px; letter-spacing: -.05em; font-weight: 700; margin: 0; }
 .palette-option small { display: block; margin-top: 4px; font-size: 10px; color: #65767c; }
 .palette-check { margin-left: auto; visibility: hidden; color: #087f83; }
 .palette-option[aria-pressed="true"] .palette-check { visibility: visible; }
-.probe-key { display: flex; align-items: center; gap: 5px; }
-.probe-key-marker { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 5px; border: 1px solid #687477; font-size: 9px; }
 .option-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 3px 4px; border: 0; border-radius: 5px; background: transparent; color: #52696b; font-size: inherit; white-space: nowrap; }
 .option-toggle:hover { background: #eef4f1; }
 .toggle-track { width: 25px; height: 14px; border-radius: 8px; background: #c2ccc7; padding: 2px; }
@@ -196,8 +201,6 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border: 3px s
 
 /* Supplementary controls float above the field without changing its geometry. */
 .detail-options { position: relative; z-index: 12; }
-.options-trigger { display: flex; align-items: center; gap: 7px; min-height: 28px; padding: 3px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #52696b; font-size: inherit; white-space: nowrap; }
-.options-trigger:hover, .options-trigger[aria-expanded="true"] { background: #eef4f1; border-color: #d7e5df; }
 .options-panel { position: fixed; width: 292px; max-width: calc(100vw - 16px); max-height: calc(100svh - 16px); overflow-y: auto; padding: 10px 14px; border: 1px solid #dce5df; border-radius: 12px; background: #fff; box-shadow: 0 8px 30px #102a3726; color: #344b4d; font-size: 13px; animation: options-appear 160ms ease-out; }
 .options-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .options-heading strong { font-size: 12px; }
@@ -206,13 +209,16 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border: 3px s
 .option-help { flex: 0 0 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: #6f8580; font: italic 15px Georgia, serif; }
 .option-help:hover, .option-help[aria-expanded="true"], .options-heading button:hover { background: #edf4f1; color: #245c5d; }
 .path-option { margin-top: 8px; padding-top: 7px; border-top: 1px solid #e8eeea; }
+.playback-option { margin-top: 8px; padding: 7px 0 4px; border-top: 1px solid #e8eeea; }
+.playback-option label { flex: 1; }
+.playback-option output { color: var(--source-1); font-variant-numeric: tabular-nums; }
+.playback-steps { display: flex; justify-content: space-between; margin: 0 9.5px; color: #829187; font-size: 10px; font-variant-numeric: tabular-nums; }
+.playback-steps span { position: relative; width: 0; display: flex; justify-content: center; white-space: nowrap; padding-top: 6px; }
+.playback-steps span::before { content: ''; position: absolute; top: 0; width: 1px; height: 3px; background: #bdccc5; }
 .options-panel .option-toggle { min-height: 42px; flex: 1; gap: 10px; font-size: 13px; }
 .option-tooltip { position: fixed; z-index: 1; width: 260px; max-width: calc(100vw - 24px); padding: 12px 14px; border: 1px solid #526968; border-radius: 9px; background: #294344; color: #f2f7f5; font-size: 12px; line-height: 1.7; box-shadow: 0 5px 16px #102a3726; }
 @keyframes options-appear { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .options-panel { animation: none; } }
-@media (min-width: 560px) and (max-height: 500px) and (orientation: landscape) {
-  .options-trigger { min-height: 26px; }
-}
 
 /* A single visual language for the three observation tools. */
 .toolbar-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -220,7 +226,7 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border: 3px s
 .toolbar-actions .button-compare, .toolbar-actions .field-legend, .toolbar-actions .options-trigger {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 40px; min-height: 40px; padding: 5px 11px; border: 0;
-  border-radius: 6px; background: transparent; color: #416362; font-size: 12px; font-weight: 500;
+  border-radius: 6px; background: transparent; color: #416362; font-size: 12px; font-weight: 500; white-space: nowrap;
 }
 .toolbar-actions button:is(.button-compare, .field-legend, .options-trigger):hover { background: transparent; color: #167774; }
 .toolbar-actions button:is(.button-compare, .field-legend, .options-trigger)[aria-expanded="true"] { background: transparent; color: #087f83; }
@@ -267,4 +273,45 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border: 3px s
 [aria-expanded="true"] .path-icon-lower { transform: rotate(-16deg); }
 @media (prefers-reduced-motion: reduce) {
   .toolbar-actions button.button-compare, .path-align-icon g { transition: none; }
+}
+
+/* Use the CSS viewport left by OS/browser scaling, not physical display pixels.
+   Reserve the expanded comparison height even while it is closed. */
+@media (min-width: 1100px) and (min-height: 600px) {
+  .app-shell {
+    --control-font: clamp(14px, 1.172vw, 17px);
+    --small-font: clamp(12px, 1.016vw, 14px);
+    width: min(1536px, calc(100% - 32px)); padding: 8px 0;
+  }
+  h1 { font-size: clamp(24px, 2.03vw, 30px); }
+  .workspace { grid-template-columns: minmax(0, 1fr) clamp(272px, 22.5vw, 328px); }
+  .field { height: clamp(210px, calc(100svh - 410px), 640px); }
+  .button, .view-switch button, .parameter-label { font-size: var(--control-font); }
+  .button, .view-switch button { min-height: 44px; }
+  .toolbar-actions .button-compare, .toolbar-actions .field-legend, .toolbar-actions .options-trigger {
+    font-size: var(--control-font); height: 44px; min-height: 44px;
+  }
+  .source-key, .readout-label, .readout .path-ratio, .condition, .help,
+  .field-hint, .motion-hint, .field-status { font-size: var(--small-font); }
+  .readout output { font-size: clamp(18px, 1.56vw, 22px); }
+  .range-endpoints, .palette-scale-labels, .playback-steps { font-size: 12px; }
+  .palette-scale { width: 66px; }
+  .control-panel { padding: 14px; }
+  .field-overlay text,
+  .comparison-overlay text:is([font-size="11"], [font-size="12"]) { font-size: var(--small-font); }
+  .comparison-overlay text[font-size="10"] { font-size: 12px; }
+  .field-overlay .path-distance-label rect { x: -46px; width: 92px; }
+  .field-overlay [data-probe-label] { font-size: 17px; }
+  .options-panel { width: 328px; font-size: var(--control-font); }
+  .options-panel .option-toggle { font-size: var(--control-font); }
+  .options-heading strong, .option-tooltip, .palette-option strong { font-size: var(--small-font); }
+  .palette-option small { font-size: 12px; }
+  .palette-options { width: 310px; }
+}
+@media (min-width: 1100px) and (min-height: 600px) and (max-height: 659px) {
+  .app-shell { padding-block: 6px; }
+  .app-header { min-height: 44px; margin-bottom: 4px; }
+  .experiment-toolbar { padding-block: 6px; }
+  .parameter-controls { gap: 16px; }
+  .observation-bar { margin-top: 18px; }
 }

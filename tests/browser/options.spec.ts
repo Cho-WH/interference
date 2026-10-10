@@ -83,12 +83,12 @@ test('options and touch help fit portrait and short landscape, close accessibly 
     const palette = (await page.locator('#palette-options').boundingBox())!;
     expect(palette.x).toBeGreaterThanOrEqual(0); expect(palette.y).toBeGreaterThanOrEqual(0);
     expect(palette.x + palette.width).toBeLessThanOrEqual(width); expect(palette.y + palette.height).toBeLessThanOrEqual(height);
-    await page.getByRole('button', { name: /푸른 물결/ }).tap();
+    await page.locator('#palette-options').getByRole('button', { name: /푸른 물결/ }).tap();
     await expect(page.locator('#wave-field')).toHaveAttribute('data-palette', 'water');
     await page.locator('#detail-options-toggle').tap();
     const panel = page.locator('#detail-options-panel');
     await expect(panel).toBeVisible();
-    for (const locator of [panel, page.locator('#change-process-toggle'), page.locator('#path-waves-toggle')]) {
+    for (const locator of [panel, page.locator('#change-process-toggle'), page.locator('#path-waves-toggle'), page.getByRole('slider', { name: '재생 속도', exact: true })]) {
       const box = (await locator.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width); expect(box.y + box.height).toBeLessThanOrEqual(height);

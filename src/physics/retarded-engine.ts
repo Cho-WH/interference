@@ -1,12 +1,13 @@
 import type { FieldBounds, ModelState, PhysicsSnapshot, ProbeSample, SourcePair, Vec2 } from '../model/types';
-import { LIMITS } from '../model/state';
+import { LIMITS, normalizeParameter } from '../model/state';
 import type { WaveEngineFactory } from './engine';
 import { phaseAt, pruneHistory, retardedArrival, type PhaseEvent, type PositionEvent } from './history';
-import { distance, moveSource, MOTION_STEP, type Motion } from './source-motion';
+import { distance, moveSource, MOTION_STEP, SOURCE_SPEED_RATIO, type Motion } from './source-motion';
 import { createWaveFrame, fieldGrid } from './sampling';
 import { retardedFieldProgram } from './retarded-field-program';
 
 const TAU = 2 * Math.PI;
+let nextEngineId = 0;
 const frozenPoint = (p: Vec2): Vec2 => Object.freeze({ ...p });
 const pair = <T>(values: readonly T[]): SourcePair<T> => Object.freeze([values[0], values[1]]);
 function copyModel(model: ModelState): ModelState {
@@ -21,6 +22,8 @@ function amplitude(a: number, b: number, phase: number): number {
 
 /** Constant-amplitude retarded-phase model. No PDE solver details escape this module. */
 export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope = { ...initial.bounds, x: 0, y: 0 }) => {
+  const engineId = nextEngineId++;
+  let revision = 0;
   const envelope = Object.freeze({ ...fieldEnvelope });
   const corners = (b: FieldBounds) => [{ x: b.x, y: b.y }, { x: b.x + b.width, y: b.y },
     { x: b.x, y: b.y + b.height }, { x: b.x + b.width, y: b.y + b.height }];
@@ -49,6 +52,7 @@ export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope =
   }
   let cachedSine: Float64Array = new Float64Array(0), cachedCosine: Float64Array = new Float64Array(0), cachedAmplitude: Float32Array = new Float32Array(0);
   const reset = (model: ModelState) => {
+    revision++;
     config = copyModel(model); time = 0; changedAt = -Infinity; lastMotionAt = -Infinity;
     motion = config.sources.map(s => ({ position: s.position, target: s.position, velocity: { x: 0, y: 0 } }));
     positions = [{ time: 0, positions: pair(motion.map(s => frozenPoint(s.position))) }];
@@ -67,6 +71,7 @@ export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope =
   return {
     reset,
     settle() {
+      revision++;
       const phase = phaseAt(phases, time);
       motion = motion.map(s => ({ position: s.target, target: s.target, velocity: { x: 0, y: 0 } }));
       positions = [{ time, positions: pair(motion.map(s => frozenPoint(s.position))) }];
@@ -90,9 +95,9 @@ export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope =
       pruneHistory(phases, time - horizon);
     },
     setWavelength(value) {
-      if (!Number.isFinite(value)) return;
-      const wavelength = Math.min(LIMITS.wavelength[1], Math.max(LIMITS.wavelength[0], value));
+      const wavelength = normalizeParameter('wavelength', value, config.wavelength);
       if (wavelength === config.wavelength) return;
+      revision++;
       const event = { time, phase: phaseAt(phases, time), frequency: config.speed / wavelength };
       if (phases.at(-1)!.time === time) phases[phases.length - 1] = event; else phases.push(event);
       config = Object.freeze({ ...config, wavelength });
@@ -101,6 +106,7 @@ export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope =
     setSourceTargets(targets) {
       if (targets.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y) || p.x < 0 || p.y < 0 || p.x > config.bounds.width || p.y > config.bounds.height)) throw new RangeError('Source target outside the domain');
       if (targets.every((p, i) => distance(p, motion[i].target) === 0)) return;
+      revision++;
       anchor();
       // Re-target from the current position with a fresh gentle launch; never teleport.
       motion = motion.map((s, i) => ({ ...s, target: frozenPoint(targets[i]), velocity: { x: 0, y: 0 } }));
@@ -146,6 +152,8 @@ export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope =
           interference: value === null ? 'transient' : value === 0 ? 'destructive' : value === maximum ? 'constructive' : 'intermediate' });
       }
       const snapshot: PhysicsSnapshot = Object.freeze({ model, clock: Object.freeze({ timeSeconds: instant, temporalPhase: phaseNow }), probe: samplePoint(probe), moving: isMoving, steady });
+      // Capture command generation and preview geometry; later commands cannot alter a retained frame's key.
+      const fieldIdentity = JSON.stringify([engineId, revision, model.wavelength, model.sources, steady]);
       let gpuProgram: ReturnType<typeof retardedFieldProgram>;
       return createWaveFrame(snapshot, samplePoint, component, (columns, rows, mode) => {
         // During propagation this is the arriving-phase envelope, not a period-averaged amplitude.
@@ -184,7 +192,12 @@ export const createRetardedEngine: WaveEngineFactory = (initial, fieldEnvelope =
           for (let i = 0; i < values.length; i++) values[i] = cachedSine[i] * sin + cachedCosine[i] * cos;
         }
         return Object.freeze({ columns, rows, values });
-      }, () => gpuProgram ??= retardedFieldProgram(model, instant, trajectory, signal, stationaryGeometry, steady, phaseNow, horizonFor(model)), bounds);
+      }, {
+        fieldBounds: bounds,
+        pathSpacing: (steady ? model.wavelength : LIMITS.wavelength[0] * (1 - SOURCE_SPEED_RATIO)) / 24,
+        fieldProgram: () => gpuProgram ??= retardedFieldProgram(model, instant, trajectory, signal, stationaryGeometry, steady, phaseNow, horizonFor(model)),
+        fieldCacheKey: mode => `${fieldIdentity}:${mode === 'wave' || !steady ? instant : 'steady-amplitude'}`,
+      });
     },
   };
 };

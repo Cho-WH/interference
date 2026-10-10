@@ -1,4 +1,4 @@
-import { placeFloatingPanel } from './floating-panel';
+import { createFloatingPanel, placeFloatingPanel } from './floating-panel';
 
 /** One home for supplementary controls; behavior and physics remain in the app. */
 export function createDetailOptions(root: HTMLElement) {
@@ -11,13 +11,11 @@ export function createDetailOptions(root: HTMLElement) {
     document.getElementById(activeHelp.getAttribute('aria-describedby')!)!.hidden = true;
     activeHelp.setAttribute('aria-expanded', 'false'); activeHelp = undefined;
   }
-  function setOpen(open: boolean, restoreFocus = false) {
-    hideHelp(); panel.hidden = !open; trigger.setAttribute('aria-expanded', String(open));
-    if (open) placeFloatingPanel(panel, trigger);
-    else if (restoreFocus) trigger.focus();
-  }
-  trigger.addEventListener('click', () => setOpen(panel.hidden), { signal });
-  root.querySelector<HTMLButtonElement>('[data-options-close]')!.addEventListener('click', () => setOpen(false, true), { signal });
+  const disclosure = createFloatingPanel(root, trigger, panel, {
+    onClose: hideHelp, onReposition: hideHelp,
+    onEscape() { const consumed = !!activeHelp; hideHelp(); return consumed; },
+  });
+  root.querySelector<HTMLButtonElement>('[data-options-close]')!.addEventListener('click', () => disclosure.close(true), { signal });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-option-help]')) {
     const show = () => {
       hideHelp(); activeHelp = button;
@@ -31,19 +29,8 @@ export function createDetailOptions(root: HTMLElement) {
     // Click also works on touch devices, without depending on hover.
     button.addEventListener('click', show, { signal });
   }
-  document.addEventListener('pointerdown', event => {
-    if (!root.contains(event.target as Node)) setOpen(false);
-    else if (!(event.target as Element).closest('[data-option-help], [role="tooltip"]')) hideHelp();
+  root.addEventListener('pointerdown', event => {
+    if (!(event.target as Element).closest('[data-option-help], [role="tooltip"]')) hideHelp();
   }, { signal });
-  document.addEventListener('keydown', event => {
-    if (event.key !== 'Escape' || panel.hidden) return;
-    if (activeHelp) hideHelp(); else setOpen(false, true);
-    event.preventDefault();
-  }, { signal });
-  root.addEventListener('focusout', event => {
-    if (event.relatedTarget && !root.contains(event.relatedTarget as Node)) setOpen(false);
-  }, { signal });
-  window.addEventListener('resize', () => { if (!panel.hidden) { hideHelp(); placeFloatingPanel(panel, trigger); } }, { signal });
-  window.addEventListener('scroll', () => { if (!panel.hidden) { hideHelp(); placeFloatingPanel(panel, trigger); } }, { signal, capture: true });
-  return { destroy() { abort.abort(); } };
+  return { destroy() { abort.abort(); disclosure.destroy(); } };
 }

@@ -1,8 +1,8 @@
-import type { FieldTransform, ModelState, SourceId, Vec2 } from '../model/types';
-import { toScreen, toWorld } from '../geometry/layout';
+import type { FieldTransform, ModelState, Vec2 } from '../model/types';
+import { toWorld } from '../geometry/layout';
+import { hitTestFieldHandle, type FieldHandleId as Target } from '../geometry/field-handles';
 import { createProbeDetent, type ProbeGuide } from '../geometry/probe-detent';
 
-type Target = 'probe' | SourceId | 'source-gap';
 export function bindFieldInput(svg: SVGSVGElement, options: {
   getTransform(): FieldTransform;
   getModel(): ModelState;
@@ -42,16 +42,7 @@ export function bindFieldInput(svg: SVGSVGElement, options: {
     const rect = svg.getBoundingClientRect();
     const screenPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     const model = options.getModel(), transform = options.getTransform();
-    const candidates = [{ id: 'probe' as Target, position: model.probe }, ...model.sources];
-    if ((model.sources[1].position.y - model.sources[0].position.y) * transform.scale < 32) {
-      candidates.push({ id: 'source-gap', position: { x: model.sources[0].position.x - 40 / transform.scale, y: model.bounds.height / 2 } });
-    }
-    let target: Target = 'probe', nearest = 24;
-    for (const candidate of candidates) {
-      const center = toScreen(candidate.position, transform);
-      const distance = Math.hypot(screenPoint.x - center.x, screenPoint.y - center.y);
-      if (distance < nearest) { nearest = distance; target = candidate.id; }
-    }
+    const target = hitTestFieldHandle(screenPoint, model, transform);
     const element = svg.querySelector<SVGElement>(`[data-handle="${target}"]`);
     probeDetent.reset();
     active = { target, pointerId: event.pointerId, preview: null, startY: toWorld(screenPoint, transform).y, separation: options.getTargetSeparation() };

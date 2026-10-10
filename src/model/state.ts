@@ -11,9 +11,13 @@ export type ModelAction =
   | Readonly<{ type: 'separation'; value: number }>
   | Readonly<{ type: 'reset' }>;
 
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
+/** Shared by committed input, previews, and engine commands. Non-finite input is ignored. */
+export function normalizeParameter(name: keyof typeof LIMITS, value: number, fallback: number): number {
+  const [minimum, maximum] = LIMITS[name];
+  return Number.isFinite(value) ? Math.min(maximum, Math.max(minimum, value)) : fallback;
 }
+
+export const sourceSeparation = (model: ModelState) => model.sources[1].position.y - model.sources[0].position.y;
 
 const SOURCE_X = 0.4;
 
@@ -56,14 +60,14 @@ export function updateModel(model: ModelState, action: ModelAction): ModelState 
       return Object.freeze({ ...model, probe: Object.freeze({ x, y }) });
     }
     case 'wavelength': {
-      if (!Number.isFinite(action.value)) return model;
-      const wavelength = clamp(action.value, ...LIMITS.wavelength);
+      const wavelength = normalizeParameter('wavelength', action.value, model.wavelength);
       if (wavelength === model.wavelength) return model;
       return Object.freeze({ ...model, wavelength });
     }
     case 'separation': {
-      if (!Number.isFinite(action.value)) return model;
-      const separation = clamp(action.value, ...LIMITS.separation);
+      const previous = sourceSeparation(model);
+      const separation = normalizeParameter('separation', action.value, previous);
+      if (separation === previous) return model;
       const center = model.bounds.height / 2;
       const positions = [center - separation / 2, center + separation / 2] as const;
       const sources: SourcePair<Source> = Object.freeze([

@@ -19,6 +19,10 @@ export function visibleFieldBounds(transform: FieldTransform): FieldBounds {
 export function sceneFieldEnvelope(bounds: Bounds, sourceExtremes: readonly Vec2[]): FieldBounds {
   const views = [286, 1000].flatMap(width => [170, 360].map(height =>
     visibleFieldBounds(createSceneTransform(bounds, sourceExtremes, width, height))));
+  // Roomy desktop: at most a 1536px shell, with controls beside the field.
+  for (const width of [750, 1200]) for (const height of [210, 640]) {
+    views.push(visibleFieldBounds(createSceneTransform(bounds, sourceExtremes, width, height)));
+  }
   // Include closed and expanded cameras in short landscape layouts.
   for (const width of [526, 1000]) for (const height of [180, 360]) {
     const columns = landscapeColumns(width);

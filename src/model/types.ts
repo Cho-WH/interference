@@ -29,4 +29,4 @@ export type FieldMode = 'wave' | 'amplitude';
 export type FieldGrid = Readonly<{ columns: number; rows: number; values: Float32Array }>;
 export type FieldTransform = Readonly<{ scale: number; offsetX: number; offsetY: number; width: number; height: number }>;
 export type ChangeMode = 'propagate' | 'instant';
-export type ViewState = Readonly<{ playing: boolean; fieldMode: FieldMode; changeMode: ChangeMode; comparisonOpen: boolean; pathWaves: boolean; interacted: boolean }>;
+export type ViewState = Readonly<{ playing: boolean; playbackRate: import('./playback').PlaybackRate; fieldMode: FieldMode; changeMode: ChangeMode; comparisonOpen: boolean; pathWaves: boolean; interacted: boolean }>;

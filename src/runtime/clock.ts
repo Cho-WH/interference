@@ -3,6 +3,7 @@ type ClockFrame = Readonly<{ timeSeconds: number }>;
 export type SimulationClock = Readonly<{
   tick: (nowMs: number) => ClockFrame;
   setPlaying: (playing: boolean, nowMs: number) => ClockFrame;
+  setRate: (rate: number, nowMs: number) => ClockFrame;
   getFrame: () => ClockFrame;
   reset: (nowMs?: number) => ClockFrame;
 }>;
@@ -12,6 +13,7 @@ export function createClock(): SimulationClock {
   let frame: ClockFrame = Object.freeze({ timeSeconds: 0 });
   let previousNow: number | null = null;
   let playing = true;
+  let rate = 1;
 
   function tick(nowMs: number): ClockFrame {
     if (!Number.isFinite(nowMs)) {
@@ -25,7 +27,7 @@ export function createClock(): SimulationClock {
     previousNow = Math.max(previousNow, nowMs);
     if (playing && elapsedSeconds > 0) {
       frame = Object.freeze({
-        timeSeconds: frame.timeSeconds + elapsedSeconds,
+        timeSeconds: frame.timeSeconds + elapsedSeconds * rate,
       });
     }
     return frame;
@@ -34,6 +36,14 @@ export function createClock(): SimulationClock {
   function setPlaying(nextPlaying: boolean, nowMs: number): ClockFrame {
     tick(nowMs);
     playing = nextPlaying;
+    return frame;
+  }
+
+  function setRate(nextRate: number, nowMs: number): ClockFrame {
+    if (!Number.isFinite(nextRate) || nextRate <= 0) throw new RangeError('Playback rate must be finite and positive.');
+    // Finish the elapsed interval at its old rate before changing future time.
+    tick(nowMs);
+    rate = nextRate;
     return frame;
   }
 
@@ -46,5 +56,5 @@ export function createClock(): SimulationClock {
     return frame;
   }
 
-  return Object.freeze({ tick, setPlaying, getFrame: () => frame, reset });
+  return Object.freeze({ tick, setPlaying, setRate, getFrame: () => frame, reset });
 }

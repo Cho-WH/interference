@@ -2,16 +2,18 @@ import type { FieldMode } from '../model/types';
 
 type RGB = readonly [number, number, number];
 export type PaletteId = 'contrast' | 'water' | 'silver';
-type Palette = { id: PaletteId; name: string; description: string; negative: RGB; zero: RGB; positive: RGB; exponent: number };
+export const DEFAULT_PALETTE: PaletteId = 'water';
+type ColorCurve = Readonly<{ kind: 'diverging'; exponent: number } | { kind: 'sequential' }>;
+type Palette = Readonly<{ id: PaletteId; name: string; description: string; negative: RGB; zero: RGB; positive: RGB; curve: ColorCurve }>;
 
 export const FIELD_PALETTES: readonly Palette[] = [
-  { id: 'contrast', name: '간섭 대비', description: '양쪽 변위를 밝게 · 마디선 관찰', negative: [126, 191, 226], zero: [20, 29, 37], positive: [240, 166, 144], exponent: .82 },
-  { id: 'water', name: '푸른 물결', description: '어두운 골에서 밝은 마루로', negative: [18, 55, 76], zero: [57, 140, 175], positive: [220, 247, 250], exponent: 1 },
-  { id: 'silver', name: '은빛 물결', description: '밝기 차이로 보는 물결', negative: [39, 58, 72], zero: [135, 155, 165], positive: [241, 247, 249], exponent: 1 },
+  { id: 'water', name: '푸른 물결', description: '어두운 골에서 밝은 마루로', negative: [18, 55, 76], zero: [57, 140, 175], positive: [220, 247, 250], curve: { kind: 'sequential' } },
+  { id: 'contrast', name: '간섭 대비', description: '양쪽 변위를 밝게 · 마디선 관찰', negative: [126, 191, 226], zero: [20, 29, 37], positive: [240, 166, 144], curve: { kind: 'diverging', exponent: .82 } },
+  { id: 'silver', name: '은빛 물결', description: '밝기 차이로 보는 물결', negative: [39, 58, 72], zero: [135, 155, 165], positive: [241, 247, 249], curve: { kind: 'sequential' } },
 ];
 
 /** Monotone interpolation with a shared tangent on both sides of displacement zero. */
-function waterColor(p: Palette, v: number, mode: FieldMode): RGB {
+function sequentialColor(p: Palette, v: number, mode: FieldMode): RGB {
   // Mild center contrast, with a finite, continuous slope (1.2 at zero).
   const x = v + .2 * v * (1 - v * v);
   const channel = (i: number) => {
@@ -31,10 +33,10 @@ function waterColor(p: Palette, v: number, mode: FieldMode): RGB {
 /** Display-only transfer functions. Both canvas and legends use these same samples. */
 function color(p: Palette, value: number, mode: FieldMode): RGB {
   const v = Math.max(mode === 'wave' ? -1 : 0, Math.min(1, value));
-  if (p.id !== 'contrast') return waterColor(p, v, mode);
-  const start = mode === 'amplitude' && p.id !== 'contrast' ? p.negative : p.zero;
+  if (p.curve.kind === 'sequential') return sequentialColor(p, v, mode);
+  const start = p.zero;
   const end = v < 0 ? p.negative : p.positive;
-  const t = Math.abs(v) ** p.exponent;
+  const t = Math.abs(v) ** p.curve.exponent;
   const channel = (i: number) => Math.round(start[i] * (1 - t) + end[i] * t);
   return [channel(0), channel(1), channel(2)];
 }

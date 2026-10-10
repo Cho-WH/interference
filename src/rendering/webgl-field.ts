@@ -40,15 +40,15 @@ export type FieldDraw = {
 };
 
 /** Owns only GPU resources. No readPixels/finish or CPU copy of the computed field. */
-export function createWebGLField(canvas: HTMLCanvasElement) {
+export function createWebGLField(canvas: HTMLCanvasElement, onFailure: (error: unknown) => void = () => {}) {
   let context: WebGL2RenderingContext | null;
   try { context = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true }); }
-  catch { return undefined; }
+  catch (error) { onFailure(error); return undefined; }
   if (!context) return undefined;
   const gl = context;
   const programs = new Set<WebGLProgram>(), textures = new Set<WebGLTexture>();
   let framebuffer: WebGLFramebuffer | null = null;
-  const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null;
+  let timer: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null;
   const pending: WebGLQuery[] = [];
   function destroy() {
     for (const q of pending) gl.deleteQuery(q);
@@ -86,6 +86,7 @@ export function createWebGLField(canvas: HTMLCanvasElement) {
     return { texture: t, width: 0, height: 0 };
   }
   try {
+    timer = gl.getExtension('EXT_disjoint_timer_query_webgl2') as typeof timer;
     const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     gl.disable(gl.DITHER); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
     const output = texture(true), palette = texture(), inputs = new Map<string, Texture>();
@@ -144,12 +145,12 @@ export function createWebGLField(canvas: HTMLCanvasElement) {
             gl.useProgram(fieldProgram!);
             let unit = 0;
             for (const input of packet.textures) {
-              if (input.width > maxTexture || input.height > maxTexture) throw new Error('History exceeds texture limit');
               gl.activeTexture(gl.TEXTURE0 + unit);
               let entry = inputs.get(input.name);
               if (!entry) { entry = texture(); inputs.set(input.name, entry); }
               gl.bindTexture(gl.TEXTURE_2D, entry.texture);
               if (entry.width !== input.width || entry.height !== input.height) {
+                if (input.width > maxTexture || input.height > maxTexture) throw new Error('History exceeds texture limit');
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, input.width, input.height, 0, gl.RGBA, gl.FLOAT, input.data);
                 if (gl.getError() !== gl.NO_ERROR) throw new Error('History allocation failed');
                 entry.width = input.width; entry.height = input.height;
@@ -178,5 +179,5 @@ export function createWebGLField(canvas: HTMLCanvasElement) {
       },
       destroy,
     };
-  } catch { destroy(); return undefined; }
+  } catch (error) { destroy(); onFailure(error); return undefined; }
 }

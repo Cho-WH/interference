@@ -1,8 +1,6 @@
 import type { FieldBounds, FieldGrid, FieldMode, PathSample, PhysicsSnapshot, ProbeSample, SourcePair, Vec2 } from '../model/types';
 import type { WaveFrame } from './engine';
 import type { FieldProgram } from './field-program';
-import { LIMITS } from '../model/state';
-import { SOURCE_SPEED_RATIO } from './source-motion';
 
 export type PointSampler = (point: Vec2) => ProbeSample;
 export type ComponentSampler = (index: number, point: Vec2) => number;
@@ -11,17 +9,24 @@ export type GridSampler = (columns: number, rows: number, mode: FieldMode) => Fi
 /** Geometry-neutral sampling shared by backends; samples actual spatial sections. */
 export function createWaveFrame(
   snapshot: PhysicsSnapshot, samplePoint: PointSampler, component: ComponentSampler, sampleField: GridSampler,
-  fieldProgram?: () => FieldProgram | undefined,
-  fieldBounds: FieldBounds = { ...snapshot.model.bounds, x: 0, y: 0 },
+  options: Readonly<{
+    pathSpacing: number;
+    fieldBounds: FieldBounds;
+    fieldProgram?: () => FieldProgram | undefined;
+    fieldCacheKey?: (mode: FieldMode) => string;
+  }>,
 ): WaveFrame {
-  return Object.freeze({ snapshot, fieldBounds: Object.freeze({ ...fieldBounds }), samplePoint, sampleField, fieldProgram, samplePaths() {
+  if (!Number.isFinite(options.pathSpacing) || options.pathSpacing <= 0) throw new RangeError('Path spacing must be positive');
+  const { pathSpacing: spacing, fieldBounds, fieldProgram, fieldCacheKey } = options;
+  return Object.freeze({ snapshot, fieldBounds: Object.freeze({ ...fieldBounds }), samplePoint, sampleField, fieldProgram, fieldCacheKey, samplePaths() {
     const { model, probe } = snapshot;
     const common = Math.min(...probe.distances);
-    const spacing = (snapshot.steady ? model.wavelength : LIMITS.wavelength[0] * (1 - SOURCE_SPEED_RATIO)) / 24;
     const paths = model.sources.map((source, index): PathSample => {
       const origin = probe.origins[index], length = probe.distances[index];
       const count = Math.max(1, Math.ceil(length / spacing));
-      const distances = [...new Set([...Array.from({ length: count + 1 }, (_, i) => length * i / count), common, length])].sort((a, b) => a - b);
+      // Pin the endpoint: length * count / count can round just beyond length,
+      // creating an extra sample that bypasses the exact probe-value branch.
+      const distances = [...new Set([...Array.from({ length: count + 1 }, (_, i) => i === count ? length : length * i / count), common])].sort((a, b) => a - b);
       const displacements = distances.map(s => {
         if (s === length) return probe.componentDisplacements[index];
         const fraction = length > 0 ? s / length : 0;

@@ -47,7 +47,10 @@ test('probe projection chooses nearest feasible boundary including curved corner
 });
 test('field bounds cover the full viewport and stay inside reserved history across supported sizes', () => {
   const sources = sourcePositionExtremes(model.bounds), envelope = sceneFieldEnvelope(model.bounds, sources);
-  for (const width of [286, 326, 390, 600, 766, 1000]) for (const height of [170, 210, 260, 308, 360]) {
+  for (const [width, height] of [
+    ...[286, 326, 390, 600, 766, 1000].flatMap(width => [170, 210, 260, 308, 360].map(height => [width, height])),
+    ...[750, 900, 1100, 1200].flatMap(width => [210, 310, 450, 640].map(height => [width, height])),
+  ]) {
     const transform = createSceneTransform(model.bounds, sources, width, height), bounds = visibleFieldBounds(transform);
     const top = toScreen(bounds, transform), bottom = toScreen({ x: bounds.x + bounds.width, y: bounds.y + bounds.height }, transform);
     close(top.x, 0); close(top.y, 0); close(bottom.x, width); close(bottom.y, height);

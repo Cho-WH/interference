@@ -33,6 +33,10 @@ export function formatDistance(meters: number): string {
   return `${(meters * 100).toFixed(1)} cm`;
 }
 
+export function formatSettingDistance(meters: number): string {
+  return `${Number((meters * 100).toFixed(1))} cm`;
+}
+
 export function formatAmplitude(meters: number): string {
   return meters > 0 && meters < .001 ? '0.1 cm 미만' : formatDistance(meters);
 }

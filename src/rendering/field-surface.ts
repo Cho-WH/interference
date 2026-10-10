@@ -5,26 +5,32 @@ import { createFieldQuality } from '../runtime/field-quality';
 import { createWebGLField } from './webgl-field';
 
 /** Chooses the presentation backend without changing the physical engine or frame. */
-export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () => void) {
+export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () => void, report: (event: string, error?: unknown) => void = () => {}) {
   const gpuCanvas = cpuCanvas.cloneNode(false) as HTMLCanvasElement;
-  let gpu = createWebGLField(gpuCanvas), activeCanvas = cpuCanvas;
+  const createGpu = () => createWebGLField(gpuCanvas, error => report('gpu-initialization-failed', error));
+  let gpu = createGpu(), activeCanvas = cpuCanvas;
+  if (!gpu) report('cpu-fallback');
   let failedKernel: string | undefined, failures = 0, disposed = false;
   const quality = createFieldQuality();
   const abort = new AbortController(), signal = abort.signal;
   let backend = '', previousKey = '', previousPalette = '', previousColumns = 0;
   let grid: FieldGrid | undefined, pixels: ImageData | undefined;
+  let previousFrame: WaveFrame | undefined;
   let context: CanvasRenderingContext2D | null = null;
   const buffer = document.createElement('canvas');
-  const bufferContext = buffer.getContext('2d', { alpha: false })!;
+  let bufferContext: CanvasRenderingContext2D | null = null;
   let lastSampleAt: number | undefined, lastTime: number | undefined, gpuMs = 0;
   let feedback: { cost: number; cpu: number; interval: number; fps: number } | undefined;
   gpuCanvas.addEventListener('webglcontextlost', event => {
     event.preventDefault(); gpu?.destroy(); gpu = undefined; failures++;
+    report('gpu-context-lost');
     previousKey = ''; quality.reset(); lastSampleAt = undefined; invalidate();
   }, { signal });
   gpuCanvas.addEventListener('webglcontextrestored', () => {
-    if (disposed || failures > 2) return;
-    gpu = createWebGLField(gpuCanvas); failedKernel = undefined;
+    if (disposed) return;
+    if (failures > 2) { report('gpu-recovery-limit'); return; }
+    gpu = createGpu(); failedKernel = undefined;
+    report(gpu ? 'gpu-context-restored' : 'cpu-fallback');
     previousKey = ''; quality.reset(); lastSampleAt = undefined; invalidate();
   }, { signal });
   function accelerated(frame: WaveFrame) {
@@ -38,7 +44,7 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
       feedback = undefined;
     },
     render(frame: WaveFrame, mode: FieldMode, transform: FieldTransform, palette: PaletteId, playing: boolean) {
-      const start = performance.now(), { snapshot } = frame, { model } = snapshot;
+      const start = performance.now(), { snapshot } = frame;
       const packet = accelerated(frame) ? frame.fieldProgram?.() : undefined;
       const useGpu = Boolean(packet && gpu?.available);
       const nextBackend = useGpu ? 'webgl2' : 'cpu';
@@ -52,8 +58,9 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
       const density = !playing || (useGpu && mode === 'amplitude' && snapshot.steady) ? (useGpu ? dpr : 1) : quality.scale() * (useGpu ? 1 : .5);
       const columns = Math.max(160, Math.min(maxColumns, Math.round(transform.width * Math.min(dpr, density))));
       const rows = Math.max(2, Math.round(columns * bounds.height / bounds.width));
-      const key = JSON.stringify([mode, columns, rows, bounds, model.wavelength, model.sources, snapshot.steady, mode === 'wave' || !snapshot.steady ? snapshot.clock.timeSeconds : 0]);
-      const fieldChanged = key !== previousKey;
+      const identity = frame.fieldCacheKey?.(mode);
+      const key = JSON.stringify([mode, columns, rows, bounds, identity]);
+      const fieldChanged = key !== previousKey || (identity === undefined && frame !== previousFrame);
       const redraw = fieldChanged || palette !== previousPalette;
       let canvas = cpuCanvas;
       if (useGpu) {
@@ -63,6 +70,7 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
           canvas = gpuCanvas;
         } catch (error) {
           failedKernel = packet!.key;
+          report('gpu-render-failed', error);
           console.warn('GPU field unavailable; continuing with CPU sampling.', error);
           previousKey = ''; invalidate();
           // The same frame is redrawn immediately, so a failed GPU never leaves a blank scene.
@@ -70,7 +78,8 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
         }
       } else {
         context ??= cpuCanvas.getContext('2d', { alpha: false });
-        if (!context) throw new Error('Canvas 2D is required for CPU fallback');
+        bufferContext ??= buffer.getContext('2d', { alpha: false });
+        if (!context || !bufferContext) throw new Error('Canvas 2D is required for CPU fallback');
         const width = Math.round(transform.width * dpr), height = Math.round(transform.height * dpr);
         if (cpuCanvas.width !== width || cpuCanvas.height !== height) { cpuCanvas.width = width; cpuCanvas.height = height; }
         if (fieldChanged || !grid) grid = frame.sampleField(columns, rows, mode);
@@ -99,6 +108,7 @@ export function createFieldSurface(cpuCanvas: HTMLCanvasElement, invalidate: () 
         ? { cost: Math.max(cost, useGpu ? gpuMs : 0), cpu: cost, interval: start - lastSampleAt, fps } : undefined;
       if (redraw && time !== lastTime) lastSampleAt = start;
       lastTime = time; previousColumns = columns; previousKey = key; previousPalette = palette;
+      previousFrame = frame;
       Object.assign(canvas.dataset, { palette, renderer: backend, fieldColumns: String(columns), fieldRows: String(rows), targetFps: String(fps), fieldMs: cost.toFixed(2), gpuMs: gpuMs.toFixed(2) });
     },
     destroy() { disposed = true; abort.abort(); gpu?.destroy(); },

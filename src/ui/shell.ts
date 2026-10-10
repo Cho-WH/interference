@@ -1,9 +1,12 @@
-import { COPY } from './copy';
+import { COPY, formatSettingDistance } from './copy';
+import { LIMITS, sourceSeparation } from '../model/state';
+import type { ModelState } from '../model/types';
+import { DEFAULT_PLAYBACK_RATE, PLAYBACK_RATES } from '../model/playback';
 
 export type AppShell = ReturnType<typeof createShell>;
 
 /** Static, accessible composition. State and event ownership stay with the app. */
-export function createShell(root: HTMLElement) {
+export function createShell(root: HTMLElement, initial: ModelState) {
   root.innerHTML = `
     <main class="app-shell">
       <header class="app-header">
@@ -43,6 +46,12 @@ export function createShell(root: HTMLElement) {
               <div id="change-process-tip" class="option-tooltip" role="tooltip" hidden>파장과 간격을 바꿀 때 중간 과정을 생략하고 즉시 최종 상태를 보여 줘요.</div>
               <div class="option-row path-option"><button id="path-waves-toggle" class="option-toggle" type="button" aria-pressed="true"><span class="toggle-track" aria-hidden="true"></span>경로에 파형 표시</button><button class="option-help" type="button" data-option-help aria-label="경로에 파형 표시 설명" aria-describedby="path-waves-tip" aria-expanded="false">i</button></div>
               <div id="path-waves-tip" class="option-tooltip" role="tooltip" hidden>펼치기 전에도 파원에서 P까지의 파형을 보여 줘요.</div>
+              <div class="playback-option">
+                <div class="option-row"><label for="playback-rate">재생 속도</label><output id="playback-rate-value" for="playback-rate">${DEFAULT_PLAYBACK_RATE}×</output><button class="option-help" type="button" data-option-help aria-label="재생 속도 설명" aria-describedby="playback-rate-tip" aria-expanded="false">i</button></div>
+                <input id="playback-rate" type="range" min="0" max="${PLAYBACK_RATES.length - 1}" step="1" value="${PLAYBACK_RATES.indexOf(DEFAULT_PLAYBACK_RATE)}" />
+                <div class="playback-steps" aria-hidden="true">${PLAYBACK_RATES.map(rate => `<span>${rate}×</span>`).join('')}</div>
+              </div>
+              <div id="playback-rate-tip" class="option-tooltip" role="tooltip" hidden>파동과 파원 이동을 함께 느리게 또는 빠르게 재생해요.</div>
             </section>
           </div>
         </div>
@@ -69,14 +78,14 @@ export function createShell(root: HTMLElement) {
         <aside class="control-panel" aria-label="파동 조건과 관측값">
         <div class="parameter-controls" aria-label="파동 조건">
           <div class="parameter">
-            <div class="parameter-label"><label for="wavelength">${COPY.wavelength}<span class="quantity-symbol">λ</span></label><output id="wavelength-value" for="wavelength">16.0 cm</output></div>
-            <input id="wavelength" type="range" min="6" max="30" step="0.5" value="15" aria-describedby="wavelength-value" />
-            <div class="range-endpoints" aria-hidden="true"><span>6 cm</span><span>30 cm</span></div>
+            <div class="parameter-label"><label for="wavelength">${COPY.wavelength}<span class="quantity-symbol">λ</span></label><output id="wavelength-value" for="wavelength">${formatSettingDistance(initial.wavelength)}</output></div>
+            <input id="wavelength" type="range" min="${LIMITS.wavelength[0] * 100}" max="${LIMITS.wavelength[1] * 100}" step="0.5" value="${initial.wavelength * 100}" aria-describedby="wavelength-value" />
+            <div class="range-endpoints" aria-hidden="true"><span>${formatSettingDistance(LIMITS.wavelength[0])}</span><span>${formatSettingDistance(LIMITS.wavelength[1])}</span></div>
           </div>
           <div class="parameter">
-            <div class="parameter-label"><label for="separation">${COPY.separation}</label><output id="separation-value" for="separation">24.0 cm</output></div>
-            <input id="separation" type="range" min="6" max="54" step="0.5" value="30" aria-describedby="separation-value" />
-            <div class="range-endpoints" aria-hidden="true"><span>6 cm</span><span>54 cm</span></div>
+            <div class="parameter-label"><label for="separation">${COPY.separation}</label><output id="separation-value" for="separation">${formatSettingDistance(sourceSeparation(initial))}</output></div>
+            <input id="separation" type="range" min="${LIMITS.separation[0] * 100}" max="${LIMITS.separation[1] * 100}" step="0.5" value="${sourceSeparation(initial) * 100}" aria-describedby="separation-value" />
+            <div class="range-endpoints" aria-hidden="true"><span>${formatSettingDistance(LIMITS.separation[0])}</span><span>${formatSettingDistance(LIMITS.separation[1])}</span></div>
           </div>
         </div>
         <p id="motion-hint" class="motion-hint" hidden></p>
@@ -137,6 +146,7 @@ export function createShell(root: HTMLElement) {
     detailOptions: element<HTMLElement>('#detail-options'),
     controls: {
       play: element<HTMLButtonElement>('#play'),
+      playbackRate: element<HTMLInputElement>('#playback-rate'),
       reset: element<HTMLButtonElement>('#reset'),
       comparison: element<HTMLButtonElement>('#comparison-toggle'),
       pathWaves: element<HTMLButtonElement>('#path-waves-toggle'),
@@ -147,6 +157,7 @@ export function createShell(root: HTMLElement) {
       separation: element<HTMLInputElement>('#separation'),
     },
     outputs: {
+      playbackRate: element<HTMLOutputElement>('#playback-rate-value'),
       wavelength: element<HTMLOutputElement>('#wavelength-value'),
       separation: element<HTMLOutputElement>('#separation-value'),
       distance1: element<HTMLElement>('#distance-1'),

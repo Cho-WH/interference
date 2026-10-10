@@ -93,7 +93,7 @@ test('GPU unavailable at startup keeps input, color presets and propagation work
   await expect(page.locator('#field-overlay')).toHaveAttribute('data-moving', 'true');
   await expect(page.locator('#wave-field')).toHaveAttribute('data-target-fps', '30');
   await page.locator('#field-legend').click();
-  await page.getByRole('button', { name: /푸른 물결/ }).click();
+  await page.locator('#palette-options').getByRole('button', { name: /푸른 물결/ }).click();
   await expect(page.locator('#wave-field')).toHaveAttribute('data-palette', 'water');
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

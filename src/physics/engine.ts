@@ -6,10 +6,18 @@ export interface WaveFrame {
   readonly snapshot: PhysicsSnapshot;
   readonly fieldBounds: FieldBounds;
   samplePoint(point: Vec2): ProbeSample;
+  /** SI distances, ascending, including zero, the shared distance and the endpoint.
+   * Endpoint displacement equals snapshot.probe.componentDisplacements. */
   samplePaths(): SourcePair<PathSample>;
-  /** amplitude: arriving-phase envelope; equals sinusoidal amplitude when steady.
-   * During propagation it is not a period-averaged measurement. */
+  /** Row-major, endpoint-inclusive grid; singleton axes sample the center.
+   * Positive integer sizes. wave is normalized to [-1,1], amplitude to [0,1].
+   * amplitude is the arriving-phase envelope, equal to sinusoidal amplitude when
+   * steady; during propagation it is not a period-averaged measurement. */
   sampleField(columns: number, rows: number, mode: FieldMode): FieldGrid;
+  /** Optional opaque identity of field values, independent of resolution and P.
+   * Equal keys guarantee equal samples for the same bounds, mode and grid size.
+   * Without this hint, renderers may reuse only the exact same frame. */
+  fieldCacheKey?(mode: FieldMode): string;
   /** Optional acceleration. Lazy, frame-owned data; CPU sampling remains the reference. */
   fieldProgram?(): FieldProgram | undefined;
 }
