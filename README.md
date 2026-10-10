@@ -6,7 +6,7 @@
 
 공개 사이트: **[파동의 간섭](https://cho-wh.github.io/interference/)**
 
-`main`에 푸시하면 GitHub Actions에서 단위 검사·빌드·브라우저 검사를 수행하고, 통과한 `dist/`를 GitHub Pages에 배포한다. PR에서는 검사만 수행한다. 수동 재배포는 Actions의 `Verify and deploy Pages`에서 실행할 수 있다.
+`main`에 푸시하면 GitHub Actions에서 타입 검사·빌드·최소 실행 확인만 수행하고, 통과한 `dist/`를 GitHub Pages에 배포한다. 최소 실행 확인은 빌드된 일반·교사 화면이 열리고 파동 프레임이 진행되는지 확인하는 2개 항목이다. PR과 수동 재배포에도 같은 범위를 적용한다. 단위 검사와 세부 브라우저 검사는 푸시 때 자동 실행하지 않는다. 수동 재배포는 Actions의 `Verify and deploy Pages`에서 실행할 수 있다.
 
 ## 실행
 
@@ -47,14 +47,24 @@ TypeScript·Vite를 사용하며 외부 런타임 라이브러리는 없다. Web
 
 ## 검증
 
+배포 시 자동으로 수행하는 범위:
+
 ```sh
-npm test
 npm run build
 npx playwright install chromium
-npm run test:browser
+npm run test:smoke
 ```
 
-계산·프레임·시간·배치의 단위 검사와 Chromium의 포인터/키보드·반응형·CPU/GPU 일치 검사를 제공한다. 변경 영역별 검증 범위는 구현과 검증 문서에 정리한다. GPU 픽셀 읽기는 테스트에서만 수행한다.
+`build`에 타입 검사가 포함된다. `test:smoke`는 `dist/`를 별도 미리보기 서버에서 열며, 개발 서버나 세부 검사 폴더를 사용하지 않는다.
+
+기능을 수정할 때는 [변경 영역별 확인](docs/implementation-plan.md#변경-영역별-확인)에서 해당 기능과 직접 영향을 받는 검사만 선택한다. 예를 들어 파원 이동을 수정했다면:
+
+```sh
+node --import tsx --test tests/physics.test.ts
+npm run test:browser -- tests/browser/propagation.spec.ts
+```
+
+특정 동작만 확인할 때는 `--grep`으로 더 좁힐 수 있다. 변경하지 않은 안정된 모듈의 검사는 반복 실행하지 않는다. `npm test`와 인자 없는 `npm run test:browser`는 각각 전체 검사를 실행하므로 기본 확인 절차로 사용하지 않는다. GPU 픽셀 읽기는 테스트에서만 수행한다.
 
 ## 개발 시작과 참고
 

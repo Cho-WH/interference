@@ -126,8 +126,12 @@ test('mobile touch and reduced-motion preserve readable comparison', async ({ br
   await expect(probe.locator('.handle-focus')).toHaveCSS('opacity', '0');
   await expect(page.locator('#first-use-hint')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const selector of ['#field', '#comparison-region', '#wavelength', '#separation', '#interference-condition']) {
+    const box = (await page.locator(selector).boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(360); expect(box.y + box.height).toBeLessThanOrEqual(800);
+  }
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
-  await page.screenshot({ path: 'test-results/mobile-comparison.png', fullPage: true });
   await context.close();
 });
 
@@ -157,7 +161,6 @@ test('desktop dragging updates probe and source separation without replacing sel
   await expect(source.locator('.handle-focus')).toHaveCSS('opacity', '1');
   await page.getByRole('button', { name: '일시 정지', exact: true }).click();
   await assertCorrespondence(page);
-  await page.screenshot({ path: 'test-results/desktop-comparison.png', fullPage: true });
 });
 
 async function inspectPixelScales(page: Page) {
@@ -209,25 +212,6 @@ test('spatial and comparison pixels match through unfolding, movement, inputs an
     await page.setViewportSize(viewport);
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     expectMatchingPixels(await inspectPixelScales(page));
-  }
-});
-
-test('expanded scenes, result and sliders remain in the viewport on laptop and phone', async ({ page }) => {
-  for (const viewport of [{width:1366,height:768},{width:390,height:844},{width:360,height:800}]) {
-    await page.setViewportSize(viewport);
-    await page.goto('/');
-    await openComparison(page);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const boxes = await page.evaluate(() => ['#field','#comparison-region','#wavelength','#separation','#interference-condition'].map(selector => {
-      const box = document.querySelector(selector)!.getBoundingClientRect();
-      return {selector, top:box.top,bottom:box.bottom,left:box.left,right:box.right,viewHeight:innerHeight,viewWidth:innerWidth};
-    }));
-    for (const box of boxes) {
-      expect(box.top, box.selector).toBeGreaterThanOrEqual(0);
-      expect(box.bottom, box.selector).toBeLessThanOrEqual(box.viewHeight);
-      expect(box.left, box.selector).toBeGreaterThanOrEqual(0);
-      expect(box.right, box.selector).toBeLessThanOrEqual(box.viewWidth);
-    }
   }
 });
 

@@ -27,7 +27,6 @@ test('expanded probe range uses top and bottom room and survives comparison and 
   const opened = (await page.locator('#field').boundingBox())!;
   await page.mouse.click(opened.x + opened.width / 2, opened.y + opened.height - 18);
   await expect.poll(async () => (await probePosition()).y).toBeCloseTo(opened.height - 18, 4);
-  await page.screenshot({ path: 'test-results/expanded-probe-bottom.png' });
   const lengths = await page.evaluate(() => [1, 2].map(i => {
     const line = document.querySelector(`[data-spatial-path="source-${i}"]`)!;
     const base = document.querySelector(`[data-path-baseline="source-${i}"]`)!;
@@ -72,7 +71,6 @@ test('short landscape keeps waves, comparison and controls in view without overl
       expect(r.right).toBeLessThanOrEqual(width); expect(r.bottom).toBeLessThanOrEqual(height);
     }
     for (const control of geometry.controls) expect(control.clear).toBe(true);
-    await page.screenshot({ path: `test-results/landscape-${width}x${height}.png` });
     await page.getByRole('button', { name: '간섭무늬', exact: true }).click();
     await page.locator('#wavelength').fill('20');
     await expect(page.locator('#field-status')).toContainText('변화 중');

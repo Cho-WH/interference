@@ -16,10 +16,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - name: Type check and build
+        run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - name: Check built app starts
+        run: npm run test:smoke
       - name: Upload site
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4

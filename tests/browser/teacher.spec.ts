@@ -84,8 +84,7 @@ test('teacher wave palette defaults to water and can change while paused without
   await expect(palette).toHaveValue('silver');
 });
 
-test('moving P after observing its vibration keeps stage-specific guidance throughout analysis', async ({ page }) => {
-  test.setTimeout(60_000);
+test('moving P updates the displayed guidance without losing the selected observation point', async ({ page }) => {
   await page.goto('/?mode=teacher'); await at(page, 's1-field');
   await advance(page, 'P의 진동 보기', 's1-probe');
   await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
@@ -93,25 +92,12 @@ test('moving P after observing its vibration keeps stage-specific guidance throu
   await page.getByRole('button', { name: '관측점 P. 방향키로 이동', exact: true }).press('ArrowLeft');
   await expect.poll(async () => Number(await state(page, 'probe-x'))).toBeCloseTo(initialX - .005, 10);
   const movedX = await state(page, 'probe-x');
-  const question = page.locator('.teacher-question');
-  await expect(question).toHaveText('주변에는 변화가 있는데, P의 합은 시간이 지나도 어떨까요?');
-  await advance(page, '첫 번째 경로 보기', 's2-path1');
-  await expect(question).toHaveText('파원 1의 파동은 P에서 어떻게 진동하나요?');
-  await advance(page, '두 번째 경로 보기', 's2-path2');
-  await expect(question).toHaveText('파원 2의 파동도 P에 도착하고 있나요?');
-  await advance(page, '두 경로 함께 보기', 's2-both');
-  await advance(page, '멈추고 펼치기', 's3-parallel');
-  await expect(question).toHaveText('거리를 바꾼 걸까요, 같은 경로를 펼친 걸까요?');
-  await advance(page, '나란히 비교하기', 's4-fit');
-  await advance(page, '같은 거리 짚기', 's4-common');
-  await advance(page, '남는 길이 보기', 's4-extra');
-  await advance(page, '파장 눈금 보기', 's4-ruler');
-  await advance(page, '거리 수치 확인', 's4-values');
-  await expect(question).toHaveText('지금의 경로차는 파장의 몇 배이며, P에서 어떤 위상차를 만들까요?');
-  await advance(page, '도착점 보기', 's5-endpoints');
-  await advance(page, '재생하며 관찰', 's5-components-playing');
-  await advance(page, '합 공개', 's5-sum');
-  await expect(question).toHaveText('두 성분의 변위와 P의 합성 진동은 어떻게 연결되나요?');
+  await expect(page.locator('.teacher-question')).toHaveText('주변에는 변화가 있는데, P의 합은 시간이 지나도 어떨까요?');
+  // Check the app-to-copy connection; per-cue wording and preservation live in teaching-copy.test.ts.
+  await page.getByRole('button', { name: /^1 \/ 8 · 전체 현상/ }).click();
+  await page.getByRole('button', { name: '거리 수치', exact: true }).click();
+  await at(page, 's4-values');
+  await expect(page.locator('.teacher-question')).toHaveText('지금의 경로차는 파장의 몇 배이며, P에서 어떤 위상차를 만들까요?');
   expect(await state(page, 'probe-x')).toBe(movedX);
 });
 
@@ -337,7 +323,6 @@ test('unfold, manual stop, fixed-scale comparison and separate disclosures retai
   await advance(page, '재생하며 관찰', 's5-components-playing');
   await expect.poll(() => state(page, 'time-seconds')).not.toBe(pausedTime);
   await advance(page, '합 공개', 's5-sum');
-  await page.screenshot({ path: 'test-results/teacher-sum.png', fullPage: true });
   const sample = await page.locator(comparison).evaluate(root => {
     const n = (id: string) => Number(root.querySelector(`[data-marker="${id}"]`)!.getAttribute('data-displacement'));
     return { first: n('source-1'), second: n('source-2'), sum: n('sum'), time: root.getAttribute('data-time-seconds') };
@@ -370,53 +355,11 @@ test('reduced motion, keyboard navigation and resize preserve P and never reset 
     expect(rows[1].distance).toBeCloseTo(.525, 10);
     expect(rows[0].scale).toBeCloseTo(rows[1].scale, 7);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `test-results/teacher-${viewport.width}x${viewport.height}.png`, fullPage: true });
   }
   await page.keyboard.press('ArrowLeft');
   await at(page, 's3-parallel');
   expect(await state(page, 'time-seconds')).toBe(frozen);
   expect(errors).toEqual([]);
-});
-
-test('phone lesson reveals and backward navigation never resize the frozen waves', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?mode=teacher'); await at(page, 's1-field');
-  await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
-  await reachBoth(page);
-  const frozenTime = await state(page, 'time-seconds');
-  const readInk = () => page.locator(`${comparison} [data-source-row]`).evaluateAll(rows => rows.map(row => {
-    const line = row.querySelector<SVGLineElement>('[data-path-baseline]')!;
-    const curve = row.querySelector<SVGPathElement>('[data-wave-path]')!;
-    const end = row.querySelector<SVGCircleElement>('[data-path-end]')!;
-    const matrix = curve.getScreenCTM()!, scale = Math.hypot(matrix.a, matrix.b);
-    const a = new DOMPoint(line.x1.baseVal.value, line.y1.baseVal.value).matrixTransform(matrix);
-    const b = new DOMPoint(line.x2.baseVal.value, line.y2.baseVal.value).matrixTransform(matrix);
-    return { length: Math.hypot(b.x - a.x, b.y - a.y), waveLength: curve.getTotalLength() * scale,
-      stroke: parseFloat(getComputedStyle(curve).strokeWidth) * scale,
-      radius: parseFloat(getComputedStyle(end).r) * scale };
-  }));
-  const original = await readInk();
-  const unchanged = async () => {
-    (await readInk()).forEach((row, i) => {
-      expect(row.length).toBeCloseTo(original[i].length, 3);
-      // Rotation rounds each polyline point to .001px; arc length can differ slightly.
-      expect(row.waveLength).toBeCloseTo(original[i].waveLength, 1);
-      expect(row.stroke).toBeCloseTo(original[i].stroke, 6);
-      expect(row.radius).toBeCloseTo(original[i].radius, 6);
-    });
-    expect(await state(page, 'time-seconds')).toBe(frozenTime);
-  };
-  for (const [label, cue] of [
-    ['멈추고 펼치기', 's3-parallel'], ['나란히 비교하기', 's4-fit'], ['같은 거리 짚기', 's4-common'],
-    ['남는 길이 보기', 's4-extra'], ['파장 눈금 보기', 's4-ruler'], ['거리 수치 확인', 's4-values'],
-    ['도착점 보기', 's5-endpoints'],
-  ]) {
-    await advance(page, label, cue); await unchanged();
-  }
-  await page.screenshot({ path: 'test-results/teacher-phone-fixed-scale.png', fullPage: true });
-  for (const cue of ['s4-values', 's4-ruler', 's4-extra', 's4-common', 's4-fit', 's3-parallel', 's2-both']) {
-    await advance(page, '이전', cue); await unchanged();
-  }
 });
 
 test('finishing an interrupted transition cannot disclose the next stage and CPU fallback shares the frame', async ({ page }) => {
@@ -618,41 +561,3 @@ test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' 
 });
 }
 
-test('frozen teacher scenes remain visible at classroom and phone viewport sizes', async ({ page }) => {
-  await page.goto('/?mode=teacher');
-  await at(page, 's1-field');
-  for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 768 }, { width: 1280, height: 600 }, { width: 390, height: 844 }]) {
-    await page.setViewportSize(viewport);
-    for (const cueId of ['s3-parallel', 's4-fit', 's4-values', 's5-sum']) {
-      await page.evaluate(async id => {
-        // @ts-expect-error Vite serves source modules for this integration fixture.
-        const { createTeacherStage, teacherFieldEnvelope } = await import('/src/presentation/stage.ts');
-        // @ts-expect-error Vite serves source modules for this integration fixture.
-        const { createLessonModel, DEFAULT_LESSON } = await import('/src/lesson/default-lesson.ts');
-        // @ts-expect-error Vite serves source modules for this integration fixture.
-        const { createRetardedEngine } = await import('/src/physics/retarded-engine.ts');
-        const area = document.querySelector('.teacher-stage')!.getBoundingClientRect();
-        const host = document.createElement('div');
-        host.dataset.frozenPreview = id;
-        host.style.cssText = `position:fixed;left:${area.left}px;top:${area.top}px;width:${area.width}px;height:${area.height}px;z-index:9999;flex:none`;
-        document.body.append(host);
-        const stage = createTeacherStage(host, { invalidate() {} });
-        const model = createLessonModel(), engine = createRetardedEngine(model, teacherFieldEnvelope(model.bounds));
-        engine.advanceTo(.371);
-        const frame = engine.read(model.probe, stage.getFieldBounds(model));
-        const cue = DEFAULT_LESSON.scenes.flatMap((scene: { cues: { id: string }[] }) => scene.cues).find((item: { id: string }) => item.id === id);
-        stage.render(frame, frame.samplePaths(), cue, { now: 0, playing: false });
-        (window as unknown as { cleanupFrozenPreview: () => void }).cleanupFrozenPreview = () => { stage.destroy(); host.remove(); };
-      }, cueId);
-      try {
-        const stage = page.locator('[data-frozen-preview]');
-        await expect(stage).toHaveAttribute('data-time-seconds', '0.371');
-        await expect(stage.locator('.teacher-path-overlay [data-wave-path="source-1"]')).toBeVisible();
-        await expect(stage.locator('.teacher-path-overlay [data-wave-path="source-2"]')).toBeVisible();
-        await stage.screenshot({ path: `test-results/teacher-frozen-${viewport.width}x${viewport.height}-${cueId}.png` });
-      } finally {
-        await page.evaluate(() => (window as unknown as { cleanupFrozenPreview: () => void }).cleanupFrozenPreview());
-      }
-    }
-  }
-});

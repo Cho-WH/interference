@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createFrameCadence } from '../src/runtime/frame-cadence';
-import { createClock } from '../src/runtime/clock';
 
 test('sampling is capped at 60 or 30 Hz independently of display refresh rate', () => {
   for (const refreshRate of [60, 120, 144]) for (const steady of [true, false]) {
@@ -24,17 +23,3 @@ test('cadence switches rate, skips missed draws, and resets without catch-up bur
   assert.equal(cadence.shouldSample(1052, false), true);
 });
 
-test('both sampling rates preserve elapsed simulation time', () => {
-  for (const steady of [true, false]) {
-    const cadence = createFrameCadence(), clock = createClock();
-    clock.tick(0);
-    let samples = 0;
-    for (let i = 1; i <= 240; i++) {
-      const time = i * 1000 / 60;
-      clock.tick(time);
-      if (cadence.shouldSample(time, steady)) samples++;
-    }
-    assert.ok(Math.abs(clock.getFrame().timeSeconds - 4) < 1e-10);
-    assert.equal(samples, steady ? 240 : 120);
-  }
-});

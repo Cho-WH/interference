@@ -76,7 +76,6 @@ test('initial equal paths keep their vibrating connector after unfolding and res
       guide: [n('[data-same-distance-guide]', 'y1'), n('[data-same-distance-guide]', 'y2')].sort() };
   });
   endpoints.guide.forEach((y, i) => expect(y).toBeCloseTo(endpoints.ends[i], 6));
-  await page.screenshot({ path: 'test-results/equal-path-connector.png', fullPage: true });
   await page.getByRole('button', { name: '처음으로', exact: true }).click();
   expect(await guideDrawn(page)).toBe(true);
   await page.getByRole('button', { name: '경로 접기', exact: true }).click();
@@ -99,7 +98,6 @@ test('path preview shares the unfolding wave and hides all settled guides during
   await expect(page.locator('#comparison-region')).toBeHidden();
   expect(await guideDrawn(page)).toBe(false);
   await expect(page.locator(ruler)).toBeHidden();
-  await page.screenshot({ path: 'test-results/path-preview.png', fullPage: true });
   const wave = await page.locator('[data-wave-path="source-1"]').getAttribute('d');
   await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
   await expect.poll(async () => Number(await page.locator(comparison).getAttribute('data-progress'))).toBeGreaterThan(.05);
@@ -109,7 +107,6 @@ test('path preview shares the unfolding wave and hides all settled guides during
   await expect(page.locator(comparison)).toHaveAttribute('data-progress', '1');
   expect(await guideDrawn(page)).toBe(true);
   await expect(page.locator(ruler)).toBeVisible();
-  await page.screenshot({ path: 'test-results/comparison-ruler.png', fullPage: true });
   await page.getByRole('button', { name: '경로 접기', exact: true }).click();
   await expect.poll(() => guideDrawn(page)).toBe(false);
   await expect(page.locator('[data-same-distance-point]')).toBeHidden();
@@ -173,9 +170,7 @@ test('fixed half-wave ruler highlights the exact difference between both endpoin
       expect(geometry.halfX - geometry.ticks[0][0]).toBeCloseTo(geometry.wavelength / 2, 4);
       expect(geometry.ticks[1][0] - geometry.halfX).toBeCloseTo(geometry.wavelength / 2, 4);
     }
-    await page.screenshot({ path: `test-results/fixed-ruler-${viewport.width}.png`, fullPage: true });
   }
-  await page.screenshot({ path: 'test-results/mobile-ruler.png', fullPage: true });
 });
 
 test('panel height animates without rescaling waves and guides fade only while paths are aligned', async ({ page }) => {

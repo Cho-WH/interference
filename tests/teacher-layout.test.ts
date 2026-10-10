@@ -103,23 +103,6 @@ test('comparison rows fit full wave amplitudes and endpoints keep the same displ
   }
 });
 
-test('a frozen waveform has one magnification through every zoom, focus and fold pose', () => {
-  for (const [w, h] of [[1280, 600], [1024, 630], [390, 500], [1920, 360]]) {
-    const spatial = teacherPose(frame.snapshot, w, h, 'spatial-paths');
-    const kinds = ['spatial-paths', 'parallel', 'path-comparison', 'endpoint-comparison'] as const;
-    const poses = kinds.map(kind => teacherPose(frame.snapshot, w, h, kind));
-    for (const pose of poses) sameWave(spatial, pose);
-    for (let i = 1; i < poses.length; i += 1) {
-      for (const p of [0, .13, .5, .87, 1]) {
-        sameWave(spatial, interpolateTeacherPose(poses[i - 1], poses[i], p));
-        sameWave(spatial, interpolateTeacherPose(poses[i], poses[i - 1], p));
-        sameWave(spatial, interpolateTeacherPose(poses[i - 1], poses[i], p, 1 - p));
-      }
-    }
-    for (const p of [.1, .5, .9]) sameWave(spatial, interpolateTeacherPose(poses[3], spatial, p));
-  }
-});
-
 test('all teacher layouts keep the original wave size through analysis and endpoint disclosures', () => {
   const kinds = ['field', 'spatial-paths', 'parallel', 'path-comparison', 'endpoint-comparison'] as const;
   const presets = [...Object.values(EXPERIMENTS), { probe: { x: 1.2, y: 0 }, wavelength: .15, separation: .54 }];

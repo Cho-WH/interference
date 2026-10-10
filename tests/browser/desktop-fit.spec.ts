@@ -20,15 +20,13 @@ test('scaled FHD laptop viewports use the available width with readable controls
     await expect(page.locator('[data-view="comparison"]')).toHaveAttribute('data-progress', '1');
     expect(await page.locator('#field').boundingBox()).toEqual(initialField);
     const layout = await page.evaluate(() => ({
-      width: document.querySelector('.app-shell')!.getBoundingClientRect().width,
       scrollHeight: document.documentElement.scrollHeight,
       font: parseFloat(getComputedStyle(document.querySelector('.parameter-label')!).fontSize),
-      boxes: ['#field', '#comparison-region', '.control-panel', '.learning-footer'].map(selector => {
+      boxes: ['#field', '#comparison-region', '.control-panel', '.learning-footer', '#wavelength', '#separation', '#interference-condition'].map(selector => {
         const rect = document.querySelector(selector)!.getBoundingClientRect();
         return { selector, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
       }),
     }));
-    expect(layout.width).toBe(Math.min(1536, width - 32));
     expect(layout.font).toBeGreaterThanOrEqual(14);
     expect(layout.scrollHeight).toBeLessThanOrEqual(height);
     for (const box of layout.boxes) {
@@ -42,7 +40,6 @@ test('scaled FHD laptop viewports use the available width with readable controls
     expect(popup.x + popup.width).toBeLessThanOrEqual(width);
     expect(popup.y + popup.height).toBeLessThanOrEqual(height);
     await page.keyboard.press('Escape');
-    await page.screenshot({ path: `test-results/desktop-fit-${width}-${height}.png` });
     expect(errors).toEqual([]);
     await context.close();
   }

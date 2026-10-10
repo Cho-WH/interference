@@ -74,7 +74,6 @@ test('options and touch help fit portrait and short landscape, close accessibly 
     await expect(page.getByRole('button', { name: '경로 접기', exact: true })).toBeVisible();
     const expandedTools = await Promise.all(['#comparison-toggle', '#field-legend', '#detail-options-toggle'].map(s => page.locator(s).boundingBox()));
     expect(expandedTools).toEqual(tools);
-    await page.screenshot({ path: `test-results/comparison-button-open-${width}.png` });
     await page.getByRole('button', { name: '경로 접기', exact: true }).tap();
     await expect(page.locator('#comparison-region')).toBeHidden();
     expect(await page.locator('#comparison-toggle').boundingBox()).toEqual(tools[0]);
@@ -99,8 +98,6 @@ test('options and touch help fit portrait and short landscape, close accessibly 
     const box = (await tip.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width); expect(box.y + box.height).toBeLessThanOrEqual(height);
-    await page.waitForTimeout(180);
-    await page.screenshot({ path: `test-results/options-${width}.png` });
     await page.keyboard.press('Escape'); await expect(tip).toBeHidden();
     await expect(page.locator('#change-process-toggle')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#path-waves-toggle')).toHaveAttribute('aria-pressed', 'true');
@@ -112,7 +109,6 @@ test('options and touch help fit portrait and short landscape, close accessibly 
     await page.keyboard.press('Enter'); await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: '상세 옵션 닫기', exact: true })).toBeFocused();
     await page.touchscreen.tap(2, height - 2); await expect(panel).toBeHidden();
-    await page.screenshot({ path: `test-results/toolbar-${width}.png` });
   }
   await context.close();
 });

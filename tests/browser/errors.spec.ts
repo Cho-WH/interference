@@ -72,7 +72,6 @@ test('render failure stops animation, retains experiment diagnostics and support
   await page.getByRole('button', { name: '오류 정보 복사' }).click();
   await expect(page.getByRole('status')).toContainText('직접 복사');
   await expect(page.getByLabel('오류 정보', { exact: true })).toBeFocused();
-  await page.screenshot({ path: 'test-results/error-manual-copy.png' });
 });
 
 test('input exceptions use the same boundary and copy diagnostics without sending a report', async ({ page }) => {
