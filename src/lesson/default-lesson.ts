@@ -43,7 +43,7 @@ export const DEFAULT_LESSON: LessonSpec = {
           teacherNotes: '같은 진동수·초기 위상, 같은 도착 진폭의 모델입니다. 전체 무늬를 관찰한 뒤 한 점에 주목합니다.' }),
       cue('s1-probe', 'P의 진동', '주변에는 변화가 있는데, P의 합은 시간이 지나도 어떨까요?', '첫 번째 경로 보기',
         { layout: 'field', visible: ['field', ...sources, 'local-probe-result'],
-          teacherNotes: 'P는 관측 위치입니다. 옆의 보라색 점이 그곳의 순간 변위를 나타냅니다. 두 주기 이상 관찰합니다.' }),
+          teacherNotes: 'P의 원은 관측 위치에 고정되어 있습니다. P를 기준으로 움직이는 보라색 점과 막대가 그곳의 순간 합성 변위를 나타냅니다. 두 주기 이상 관찰합니다.' }),
     ] },
     { id: 'scene-2', title: 'P까지의 두 경로', cues: [
       cue('s2-path1', '파원 1의 기여', '파원 1의 파동은 P에서 어떻게 진동하나요?', '두 번째 경로 보기',

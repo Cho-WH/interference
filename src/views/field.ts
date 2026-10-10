@@ -74,9 +74,7 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
   const probeBounds = element('path', { fill: 'none', stroke: '#e5f2ef', 'stroke-width': 1, 'stroke-dasharray': '3 6', 'stroke-linecap': 'round', 'pointer-events': 'none', 'data-probe-bounds': '', visibility: 'hidden' });
   const origins = colors.map((color, i) => element('circle', { r: 5, fill: '#102a37', stroke: color, 'stroke-width': 2, 'data-emission-origin': `source-${i + 1}`, 'pointer-events': 'none' }));
   const targets = colors.map((color, i) => element('circle', { r: 15, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-dasharray': '4 3', 'data-source-target': `source-${i + 1}`, 'pointer-events': 'none' }));
-  const localResult = element('g', { 'data-local-probe-result': '', 'aria-hidden': 'true', display: 'none' });
-  const localLink = element('line', { stroke: '#c4d5df', 'stroke-width': 1.5, 'stroke-dasharray': '4 5' });
-  localResult.append(localLink);
+  const localResult = element('g', { 'data-local-probe-result': '', 'aria-hidden': 'true', 'pointer-events': 'none', display: 'none' });
   const localMarker = createDisplacementMarker(localResult, SUM_COLOR, 'local-probe-result');
   const localLabel = element('text', { 'font-size': 20, 'text-anchor': 'middle', fill: '#fff', 'paint-order': 'stroke', stroke: '#152b3b', 'stroke-width': 3 });
   localLabel.textContent = 'P의 합성변위'; localResult.append(localLabel);
@@ -113,10 +111,9 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
       if (display.localProbeResult) {
         const maxAmplitude = snapshot.model.sources[0].amplitude + snapshot.model.sources[1].amplitude;
         const displacementScale = display.displacementScale ?? (maxAmplitude ? 50 / maxAmplitude : 1);
-        const x = p.x + 110 < transform.width - 70 ? p.x + 110 : p.x - 110;
-        setLine(localLink, p, { x, y: p.y });
-        localMarker.render(x, p.y, snapshot.probe.resultantDisplacement, displacementScale, maxAmplitude);
-        setAttributes(localLabel, { x, y: p.y + maxAmplitude * displacementScale + 30 });
+        localMarker.render(p.x, p.y, snapshot.probe.resultantDisplacement, displacementScale, maxAmplitude);
+        setAttributes(localLabel, { x: Math.max(75, Math.min(transform.width - 75, p.x)),
+          y: Math.min(transform.height - 12, p.y + maxAmplitude * displacementScale + 30) });
       }
       probeBounds.setAttribute('visibility', probeOutline ? 'visible' : 'hidden');
       if (probeOutline) probeBounds.setAttribute('d', pathFromPoints(probeOutline.map(point => toScreen(point, transform))) + 'Z');
