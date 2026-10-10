@@ -12,9 +12,10 @@ for (const teacher of [false, true]) {
       await page.getByRole('button', { name: '1 / 8 · 전체 현상', exact: true }).click();
       await page.getByRole('button', { name: '파장으로 비교', exact: true }).click();
     } else await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
-    const reference = page.locator('[data-wavelength-mark] [data-ruler-reference-wave]');
+    const main = page.locator(teacher ? `.teacher-path-overlay ${comparison}` : comparison);
+    const reference = main.locator('[data-wavelength-mark] [data-ruler-reference-wave]');
     await expect(reference).toBeVisible();
-    await expect(page.locator(`${ruler} [data-ruler-reference-wave]`)).toBeVisible();
+    await expect(main.locator(`${ruler} [data-ruler-reference-wave]`)).toBeVisible();
     const shape = await reference.evaluate(el => {
       const parent = el.parentElement!, band = parent.querySelector('[data-ruler-band]')!;
       const points = [...el.getAttribute('d')!.matchAll(/[ML]([\d.e+-]+),([\d.e+-]+)/g)].map(m => ({ x: Number(m[1]), y: Number(m[2]) }));
@@ -30,7 +31,7 @@ for (const teacher of [false, true]) {
     expect(Math.abs(trough.x - crest.x - shape.wavelength / 2)).toBeLessThan(3);
     expect(shape.opacity).toBeGreaterThan(0); expect(shape.opacity).toBeLessThan(1);
     const curve = await reference.getAttribute('d');
-    const main = page.locator(comparison), time = Number(await main.getAttribute('data-time-seconds'));
+    const time = Number(await main.getAttribute('data-time-seconds'));
     await expect.poll(async () => Number(await main.getAttribute('data-time-seconds'))).toBeGreaterThan(time + .1);
     await expect(reference).toHaveAttribute('d', curve!);
   });
