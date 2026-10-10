@@ -89,7 +89,8 @@ test('B returns to the current spatial P, moves while paused, then unfolds befor
   await advance(page, '거리와 파장 비교', 's6-b-predict');
   await expect(page.locator(`${comparison} [data-path-distance="source-1"]`)).toHaveText('45.0 cm');
   await expect(page.locator(`${comparison} [data-path-distance="source-2"]`)).toHaveText('60.0 cm');
-  for (const selector of ['[data-wave-path]', '[data-marker="sum"]', '[data-marker="source-1"]', '[data-marker="source-2"]'])
+  for (const wave of await page.locator(comparison + ' [data-wave-path]').all()) await expect(wave).toBeVisible();
+  for (const selector of ['[data-marker="sum"]', '[data-marker="source-1"]', '[data-marker="source-2"]'])
     for (const node of await page.locator(comparison + ' ' + selector).all()) await expect(node).toBeHidden();
   await advance(page, '경로와 성분 확인', 's6-b-paths');
   await expect(page.locator(comparison + ' [data-marker="sum"]')).toBeHidden();
@@ -210,6 +211,47 @@ test('reduced motion, keyboard navigation and resize preserve P and never reset 
   expect(errors).toEqual([]);
 });
 
+test('phone lesson reveals and backward navigation never resize the frozen waves', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?mode=teacher'); await at(page, 's1-field');
+  await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
+  await reachBoth(page);
+  const frozenTime = await state(page, 'time-seconds');
+  const readInk = () => page.locator(`${comparison} [data-source-row]`).evaluateAll(rows => rows.map(row => {
+    const line = row.querySelector<SVGLineElement>('[data-path-baseline]')!;
+    const curve = row.querySelector<SVGPathElement>('[data-wave-path]')!;
+    const end = row.querySelector<SVGCircleElement>('[data-path-end]')!;
+    const matrix = curve.getScreenCTM()!, scale = Math.hypot(matrix.a, matrix.b);
+    const a = new DOMPoint(line.x1.baseVal.value, line.y1.baseVal.value).matrixTransform(matrix);
+    const b = new DOMPoint(line.x2.baseVal.value, line.y2.baseVal.value).matrixTransform(matrix);
+    return { length: Math.hypot(b.x - a.x, b.y - a.y), waveLength: curve.getTotalLength() * scale,
+      stroke: parseFloat(getComputedStyle(curve).strokeWidth) * scale,
+      radius: parseFloat(getComputedStyle(end).r) * scale };
+  }));
+  const original = await readInk();
+  const unchanged = async () => {
+    (await readInk()).forEach((row, i) => {
+      expect(row.length).toBeCloseTo(original[i].length, 3);
+      // Rotation rounds each polyline point to .001px; arc length can differ slightly.
+      expect(row.waveLength).toBeCloseTo(original[i].waveLength, 1);
+      expect(row.stroke).toBeCloseTo(original[i].stroke, 6);
+      expect(row.radius).toBeCloseTo(original[i].radius, 6);
+    });
+    expect(await state(page, 'time-seconds')).toBe(frozenTime);
+  };
+  for (const [label, cue] of [
+    ['멈추고 펼치기', 's3-parallel'], ['크게 비교하기', 's4-fit'], ['같은 거리 짚기', 's4-common'],
+    ['남는 길이 보기', 's4-extra'], ['파장 눈금 보기', 's4-ruler'], ['거리 수치 확인', 's4-values'],
+    ['도착점 보기', 's5-endpoints'],
+  ]) {
+    await advance(page, label, cue); await unchanged();
+  }
+  await page.screenshot({ path: 'test-results/teacher-phone-fixed-scale.png', fullPage: true });
+  for (const cue of ['s4-values', 's4-ruler', 's4-extra', 's4-common', 's4-fit', 's3-parallel', 's2-both']) {
+    await advance(page, '이전', cue); await unchanged();
+  }
+});
+
 test('finishing an interrupted transition cannot disclose the next stage and CPU fallback shares the frame', async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -264,10 +306,12 @@ test('teacher resources are released on an explicit session disposal', async ({ 
   expect(result.events).toEqual([]);
 });
 
-test('teacher zoom keeps frozen wave geometry and rendered ink at one scale, including reversal and reduced motion', async ({ page }) => {
+for (const stageSize of [{ width: 1280, height: 600, mobile: false }, { width: 390, height: 744, mobile: true }]) {
+test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' : 'desktop zoom'} through reversal and reduced motion`, async ({ page }) => {
+  await page.setViewportSize({ width: stageSize.width, height: stageSize.height + 100 });
   await page.goto('/?mode=teacher');
   await at(page, 's1-field');
-  const samples = await page.evaluate(async () => {
+  const samples = await page.evaluate(async size => {
     // Exercise the real stage with one immutable physical frame and deterministic
     // presentation times, so intermediate/reversed poses cannot race a browser RAF.
     // @ts-expect-error Vite serves source modules for this integration fixture.
@@ -279,7 +323,7 @@ test('teacher zoom keeps frozen wave geometry and rendered ink at one scale, inc
     // @ts-expect-error Vite serves source modules for this integration fixture.
     const { SEMANTIC_IDS } = await import('/src/lesson/types.ts');
     const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;left:0;top:0;width:1280px;height:600px;z-index:9999;flex:none';
+    host.style.cssText = `position:fixed;left:0;top:0;width:${size.width}px;height:${size.height}px;z-index:9999;flex:none`;
     document.body.append(host);
     const stage = createTeacherStage(host, { invalidate() {} });
     const model = createLessonModel(), engine = createRetardedEngine(model, teacherFieldEnvelope(model.bounds));
@@ -353,28 +397,38 @@ test('teacher zoom keeps frozen wave geometry and rendered ink at one scale, inc
       take('reverse-end', 'back', 'parallel', 'unfold-in-place', 3190);
       take('zoom-again', 'fit-again', 'path-comparison', 'fit-paths', 3190);
       take('enlarged', 'fit-again', 'path-comparison', 'fit-paths', 3970);
-      take('endpoints-start', 'ends', 'endpoint-comparison', 'focus-endpoints', 3970);
-      take('endpoints', 'ends', 'endpoint-comparison', 'focus-endpoints', 4750);
-      take('fold-start', 'return', 'spatial-paths', 'fold-to-field', 4750);
-      take('fold-middle', 'return', 'spatial-paths', 'fold-to-field', 5400);
-      take('fold-end', 'return', 'spatial-paths', 'fold-to-field', 6110);
+      take('distance-reveal-start', 'values', 'path-comparison', 'focus', 3970);
+      take('distance-reveal', 'values', 'path-comparison', 'focus', 4200);
+      take('endpoints-start', 'ends', 'endpoint-comparison', 'focus-endpoints', 4200);
+      take('endpoints', 'ends', 'endpoint-comparison', 'focus-endpoints', 4980);
+      take('fold-start', 'return', 'spatial-paths', 'fold-to-field', 4980);
+      take('fold-middle', 'return', 'spatial-paths', 'fold-to-field', 5630);
+      take('fold-end', 'return', 'spatial-paths', 'fold-to-field', 6340);
       take('reduced-split', 'reduced', 'parallel', 'unfold-in-place', 7000, true);
+      if (size.mobile) {
+        host.querySelector<HTMLButtonElement>('.teacher-reduced-toggle')!.click();
+        take('reduced-spatial', 'reduced', 'parallel', 'unfold-in-place', 7000.5, true);
+      }
       take('reduced-enlarged', 'reduced-fit', 'path-comparison', 'fit-paths', 7001, true);
       return samples;
     } finally { stage.destroy(); host.remove(); }
-  });
+  }, stageSize);
   const reference = samples[0].main;
   const parallel = samples.find(sample => sample.name === 'parallel')!.main;
   const middle = samples.find(sample => sample.name === 'zoom-middle')!.main;
   const enlarged = samples.find(sample => sample.name === 'enlarged')!.main;
-  expect(middle.rows[0].scale).toBeGreaterThan(parallel.rows[0].scale);
-  expect(middle.rows[0].scale).toBeLessThan(enlarged.rows[0].scale);
+  if (!stageSize.mobile) {
+    expect(middle.rows[0].scale).toBeGreaterThan(parallel.rows[0].scale);
+    expect(middle.rows[0].scale).toBeLessThan(enlarged.rows[0].scale);
+  }
   expect(samples.find(sample => sample.name === 'reverse-start')!.main).toEqual(middle);
-  expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).not.toBeNull();
+  if (!stageSize.mobile) expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).not.toBeNull();
+  else expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).toBeNull();
   expect(reference.rows[1].dash).toHaveLength(2);
   for (const sample of samples) {
     for (const actual of [sample.main, sample.counterpart].filter(value => value !== null)) {
       const zoom = actual.rows[0].scale / reference.rows[0].scale;
+      if (stageSize.mobile) expect(zoom, sample.name).toBeCloseTo(1, 6);
       expect(actual.time, sample.name).toBe(reference.time);
       actual.rows.forEach((row, index) => {
         const before = reference.rows[index];
@@ -396,6 +450,7 @@ test('teacher zoom keeps frozen wave geometry and rendered ink at one scale, inc
     }
   }
 });
+}
 
 test('frozen teacher scenes remain visible at classroom and phone viewport sizes', async ({ page }) => {
   await page.goto('/?mode=teacher');

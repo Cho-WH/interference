@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createLessonModel } from '../src/lesson/default-lesson';
+import { createLessonModel, EXPERIMENTS } from '../src/lesson/default-lesson';
 import { createRetardedEngine } from '../src/physics/retarded-engine';
 import { placePathPoint, visibleFieldBounds, toScreen, type PathPlacement } from '../src/geometry/layout';
 import { teacherCorrespondence, teacherFieldEnvelope, teacherFieldTransform, teacherPose, type TeacherPose } from '../src/presentation/layout';
@@ -113,6 +113,41 @@ test('a frozen waveform has one magnification through every zoom, focus and fold
       }
     }
     for (const p of [.1, .5, .9]) sameWave(spatial, interpolateTeacherPose(poses[3], spatial, p));
+  }
+});
+
+test('portrait phone layouts keep the original wave size through analysis and endpoint disclosures', () => {
+  const kinds = ['field', 'spatial-paths', 'parallel', 'path-comparison', 'endpoint-comparison'] as const;
+  const presets = [...Object.values(EXPERIMENTS), { probe: { x: 1.2, y: 0 }, wavelength: .15, separation: .54 }];
+  for (const [width, height] of [[320, 568], [390, 744], [699, 844], [390, 400]]) {
+    const original = teacherPose(frame.snapshot, width, height, 'spatial-paths');
+    for (const preset of presets) {
+      const experiment = createLessonModel(preset);
+      const snapshot = createRetardedEngine(experiment, teacherFieldEnvelope(experiment.bounds)).read(experiment.probe).snapshot;
+      const poses = kinds.map(kind => teacherPose(snapshot, width, height, kind));
+      const unchangedScale = (pose: TeacherPose) => {
+        close(pose.layout.distanceScale, original.layout.distanceScale);
+        close(pose.layout.displacementScale, original.layout.displacementScale);
+        close(pose.layout.componentAmplitudePx, original.layout.componentAmplitudePx);
+        close(pose.magnification, original.magnification);
+        close(pose.camera.scale, original.camera.scale);
+        pose.placements.forEach(placement => {
+          close(placement.distanceScale, original.layout.distanceScale);
+          close(placement.displacementScale, original.layout.displacementScale);
+        });
+      };
+      poses.forEach(unchangedScale);
+      for (const pose of poses.slice(3)) pose.placements.forEach((placement, i) => {
+        const end = placePathPoint(snapshot.probe.distances[i], 0, placement);
+        assert.ok(end.x <= pose.layout.pointX, 'endpoint links must point forward to their component column');
+      });
+      for (let i = 1; i < poses.length; i += 1) {
+        for (const p of [.2, .5, .8]) {
+          unchangedScale(interpolateTeacherPose(poses[i - 1], poses[i], p));
+          unchangedScale(interpolateTeacherPose(poses[i], poses[i - 1], p));
+        }
+      }
+    }
   }
 });
 

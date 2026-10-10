@@ -39,11 +39,13 @@ export function teacherPose(snapshot: PhysicsSnapshot, width: number, height: nu
   const horizontal = (pointX - left - (compact ? 32 : 110)) / (maxDistance * camera.scale);
   const desired = (endpoint ? 1560 : 1320) * width / 1280 / camera.scale;
   const vertical = Math.max(.15, (contentBottom - contentTop - rowRail) / (4 * baseAmplitude + 14));
-  const magnification = spatial || parallel ? 1 : Math.max(.15, Math.min(desired, vertical, endpoint && !compact ? desired : horizontal));
+  // Narrow stages keep the original wave size throughout the lesson. Rearrange
+  // rows and annotations instead of refitting the wave at each analysis layout.
+  const magnification = compact || spatial || parallel ? 1 : Math.max(.15, Math.min(desired, vertical, endpoint ? desired : horizontal));
   const scale = camera.scale * magnification, amplitude = baseAmplitude * magnification;
   const gap = Math.max(2 * amplitude + rowRail, Math.min(156 * height / 664, 176));
   const rows: [number, number] = [center - gap / 2, center + gap / 2];
-  const startX = endpoint && !compact ? Math.min(left, pointX - 150 - maxDistance * scale) : left;
+  const startX = compact || endpoint ? Math.min(left, pointX - (compact ? 32 : 150) - maxDistance * scale) : left;
   const probe = toScreen(snapshot.model.probe, camera);
   const placements = snapshot.probe.origins.map((origin, i) => {
     const source = toScreen(origin, camera);

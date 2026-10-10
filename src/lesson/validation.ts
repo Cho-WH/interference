@@ -97,14 +97,15 @@ export function validateLesson(value: unknown): LessonError[] {
   }
   if (errors.length) return errors;
   const lesson = value as unknown as LessonSpec, positions = flattenLesson(lesson);
-  const requiredPolicies: Record<string, string> = {
+  const requiredPolicies: Record<string, string | readonly string[]> = {
     's5-endpoints': 'predict-sum', 's5-components-playing': 'predict-sum',
-    's6-b-space': 'predict-from-paths', 's6-b-parallel': 'predict-from-paths',
-    's6-b-predict': 'predict-from-paths', 's6-b-paths': 'predict-sum',
+    's6-b-space': ['predict-sum', 'predict-from-paths'], 's6-b-parallel': ['predict-sum', 'predict-from-paths'],
+    's6-b-predict': ['predict-sum', 'predict-from-paths'], 's6-b-paths': 'predict-sum',
     's7-a-predict': 'predict-from-paths', 's7-c-change': 'predict-from-paths', 's7-c-paths': 'predict-sum',
   };
   positions.forEach(({ cue }, i) => {
-    if (requiredPolicies[cue.id] && cue.revealPolicy !== requiredPolicies[cue.id])
+    const required = requiredPolicies[cue.id];
+    if (required && !(Array.isArray(required) ? required.includes(cue.revealPolicy) : cue.revealPolicy === required))
       error(cue.id, '보호된 예측 단계의 결과 가림은 유지해야 합니다.', cue.id);
     const clock = cue.id === 's2-both' ? 'pause-explicit' : cue.id === 's5-endpoints' ? 'play-explicit' : undefined;
     if (clock && cue.nextAction?.clockIntent !== clock)

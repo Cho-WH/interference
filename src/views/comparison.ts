@@ -269,8 +269,8 @@ export function createComparisonView(svg: SVGSVGElement) {
           setAttributes(sameDistanceGuide, { 'stroke-width': 2 * drawingScale });
           setAttributes(longDistanceGuide, { 'stroke-width': 2 * drawingScale });
           setAttributes(sumLabel, { y: sumZeroY - 2 * layout.componentAmplitudePx - 22 });
-          setAttributes(sameDistanceKey, { cx: Math.max(32, startX + 4 * drawingScale), cy: rowZeros[0] - layout.componentAmplitudePx - 32 });
-          setAttributes(sameDistanceLabel, { x: Math.max(50, startX + 14 * drawingScale), y: rowZeros[0] - layout.componentAmplitudePx - 28 });
+          setAttributes(sameDistanceKey, { cx: Math.max(32, startX + 4 * drawingScale), cy: rowZeros[0] - layout.componentAmplitudePx - (layout.compact ? 64 : 32) });
+          setAttributes(sameDistanceLabel, { x: Math.max(50, startX + 14 * drawingScale), y: rowZeros[0] - layout.componentAmplitudePx - (layout.compact ? 60 : 28) });
           const narrow = options.width < 700;
           setAttributes(pathDifference, { x: Math.max(24, startX), y: endY - (narrow ? 118 : 30) });
           wavelengthMark.render(markStart / drawingScale, markEnd / drawingScale, (endY - (narrow ? 92 : 38)) / drawingScale, wavelengthPixels / drawingScale, canCompare);

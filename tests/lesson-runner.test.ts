@@ -58,13 +58,13 @@ test('direct C result jump lands on safe hold; readiness never automatically rev
 test('blackout persists across navigation; override clears; locked input cannot change prediction', () => {
   const s = setup(); s.runner.toggleBlackOut(); s.runner.setOverride('resultant', true);
   s.runner.next(); assert.equal(s.runner.blackOut, true); assert.deepEqual(s.runner.teacherOverride, {});
-  s.jump('s6-b-predict'); const preset = s.experiment.model;
+  s.jump('s7-a-predict'); const preset = s.experiment.model;
   assert.equal(s.runner.manual({ type: 'wavelength', value: .2 }), false);
   assert.equal(s.experiment.model, preset);
   s.runner.setOverride('resultant', true); s.runner.setOverride('component-1', true);
   for (const id of ['resultant', 'component-1', 'field', 'path-1', 'same-distance-correspondence'] as const)
     assert.equal(s.runner.visible.has(id), false);
-  s.runner.toggleBlackOut(); assert.equal(s.runner.state.cue.id, 's6-b-predict');
+  s.runner.toggleBlackOut(); assert.equal(s.runner.state.cue.id, 's7-a-predict');
 });
 test('exploration return defaults to retaining inputs; restore propagates; reset alone restarts time', () => {
   const s = setup(); s.jump('s5-sum'); s.time(1000);
@@ -106,9 +106,11 @@ test('B starts after folding the current manual P and stops before unfolding and
   s.transition(); s.runner.next();
   assert.equal(s.runner.state.cue.id, 's6-b-space', 'next completes only the moving P');
   for (const next of ['s6-b-parallel', 's6-b-predict']) {
-    for (const answer of ['field', 'path-1', 'component-1', 'resultant'] as const) {
+    for (const answer of ['field', 'local-probe-result', 'resultant'] as const) {
       s.runner.setOverride(answer, true); assert.equal(s.runner.visible.has(answer), false);
     }
+    assert.equal(s.runner.visible.has('path-1'), true);
+    assert.equal(s.runner.visible.has('path-2'), true);
     s.runner.next(); assert.equal(s.runner.state.cue.id, next);
     assert.equal(s.experiment.generation, bGeneration); assert.equal(s.experiment.playing, false);
     assert.equal(s.experiment.timeSeconds, 1);
