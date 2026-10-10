@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { createProbeDetent, type ProbeGuide } from '../src/geometry/probe-detent';
 import { createModel } from '../src/model/state';
 import { createRetardedEngine } from '../src/physics/retarded-engine';
+import { createFrameProbeGuide } from '../src/app/probe-guide';
 
 const guide: ProbeGuide = { key: 'fixed', phaseAt: p => p.y * Math.PI / 20, contains: () => true };
 const point = (y: number, x = 0) => ({ x, y });
@@ -14,10 +15,10 @@ test('only crossing catches; tangential movement is free and release allows posi
   const along = detent.move(point(2, 10), guide, 1);
   assert.equal(along.x, 10); assert.ok(Math.abs(along.y) < 1e-10);
   assert.ok(Math.abs(detent.move(point(5, 10), guide, 1).y) < 1e-10);
-  assert.deepEqual(detent.move(point(10, 10), guide, 1), point(10, 10));
+  assert.deepEqual(detent.move(point(13, 10), guide, 1), point(13, 10));
   // After breaking through, even crossing back near the same line remains free.
   for (const y of [1, -.5, .5]) assert.deepEqual(detent.move(point(y), guide, 1), point(y));
-  detent.move(point(14), guide, 1);
+  detent.move(point(17), guide, 1);
   assert.ok(Math.abs(detent.move(point(-1), guide, 1).y) < 1e-10);
   detent.reset();
   assert.deepEqual(detent.move(point(.5), guide, 1), point(.5));
@@ -41,9 +42,9 @@ test('the catch has the same screen strength at different scales', () => {
   for (const scale of [100, 500, 1000]) {
     const detent = createProbeDetent();
     detent.move(point(-2 / scale), guide, scale);
-    assert.ok(Math.abs(detent.move(point(2 / scale), guide, scale).y) < 1e-10);
     assert.ok(Math.abs(detent.move(point(5 / scale), guide, scale).y) < 1e-10);
-    assert.deepEqual(detent.move(point(10 / scale), guide, scale), point(10 / scale));
+    assert.ok(Math.abs(detent.move(point(7 / scale), guide, scale).y) < 1e-10);
+    assert.deepEqual(detent.move(point(13 / scale), guide, scale), point(13 / scale));
   }
 });
 
@@ -52,14 +53,14 @@ test('release is continuous and monotonic on both sides, then leaves no residual
     const detent = createProbeDetent();
     detent.move(point(-sign), guide, 1); detent.move(point(sign), guide, 1);
     let previous = 0;
-    for (let pixels = 6; pixels <= 10; pixels += .01) {
+    for (let pixels = 8; pixels <= 13; pixels += .01) {
       const actual = sign * detent.move(point(sign * pixels), guide, 1).y;
       assert.ok(actual >= previous - 1e-10);
       assert.ok(actual - previous < .06); // No position jump across either boundary.
       assert.ok(actual <= pixels + 1e-10);
       previous = actual;
     }
-    assert.deepEqual(detent.move(point(sign * 10), guide, 1), point(sign * 10));
+    assert.deepEqual(detent.move(point(sign * 13), guide, 1), point(sign * 13));
     assert.deepEqual(detent.move(point(sign), guide, 1), point(sign));
   }
 });
@@ -69,7 +70,7 @@ test('curved nodal and constructive lines land at the engine interference condit
   for (const initialPhase of [0, .4]) {
     const model = { ...base, sources: [base.sources[0], { ...base.sources[1], initialPhase }] as const };
     const frame = createRetardedEngine(model).read(model.probe);
-    const field: ProbeGuide = { key: 'real', phaseAt: p => frame.samplePoint(p).phaseDifference, contains: () => true };
+    const field = createFrameProbeGuide(frame, () => true)!;
     for (const target of [-Math.PI, 0, Math.PI]) {
       let low = .01, high = .71;
       for (let i = 0; i < 50; i++) {
@@ -83,4 +84,16 @@ test('curved nodal and constructive lines land at the engine interference condit
       assert.equal(frame.samplePoint(caught).interference, target === 0 ? 'constructive' : 'destructive');
     }
   }
+});
+
+test('shared frame guides are unavailable while a new wavelength propagates', () => {
+  const model = createModel(), engine = createRetardedEngine(model);
+  const contains = (p: { x: number; y: number }) => p.x >= 0 && p.x <= model.bounds.width;
+  const before = createFrameProbeGuide(engine.read(model.probe), contains)!;
+  assert.equal(before.contains({ x: -1, y: 0 }), false);
+  engine.setWavelength(.2);
+  assert.equal(createFrameProbeGuide(engine.read(model.probe), contains), undefined);
+  engine.settle();
+  const after = createFrameProbeGuide(engine.read(model.probe), contains)!;
+  assert.notEqual(before.key, after.key);
 });

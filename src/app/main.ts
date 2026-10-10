@@ -11,6 +11,7 @@ import { createObservationPanel } from '../ui/observation-panel';
 import { createComparisonTransition } from '../runtime/comparison-transition';
 import { createShell } from '../ui/shell';
 import { bindFieldInput } from '../ui/field-input';
+import { createFrameProbeGuide } from './probe-guide';
 import { createDetailOptions } from '../ui/detail-options';
 import { createPalettePicker } from '../ui/palette-picker';
 import { DEFAULT_PALETTE, type PaletteId } from '../visual/field-palettes';
@@ -223,13 +224,9 @@ export function mountApp(root: HTMLElement, session: AppSession) {
     getModel: () => ({ ...currentFrame.snapshot.model, probe: model.probe }),
     getProbeGuide: () => {
       const frame = experiment.read(visibleFieldBounds(transform));
-      if (!frame.snapshot.steady || previewSeparation !== null || !probeRegion) return undefined;
+      if (previewSeparation !== null || !probeRegion) return undefined;
       const region = probeRegion;
-      return {
-        key: JSON.stringify([frame.snapshot.model.wavelength, frame.snapshot.model.sources]),
-        phaseAt: (point: Vec2) => frame.samplePoint(point).phaseDifference,
-        contains: (point: Vec2) => containsProbe(region, point),
-      };
+      return createFrameProbeGuide(frame, point => containsProbe(region, point));
     },
     moveProbe: (position) => dispatch({ type: 'probe', position }),
     setSeparation: (value) => dispatch({ type: 'separation', value }),

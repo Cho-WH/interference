@@ -6,7 +6,7 @@ export type ProbeGuide = Readonly<{
   phaseAt(point: Vec2): number | null;
   contains(point: Vec2): boolean;
 }>;
-const CAPTURE_PX = 4, HOLD_PX = 6, RELEASE_SPAN_PX = 3, REARM_PX = 12;
+const CAPTURE_PX = 5, HOLD_PX = 8, RELEASE_SPAN_PX = 4, REARM_PX = 16;
 const distance = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** Briefly catches a crossed multiple of π. Never attracts an approaching pointer.

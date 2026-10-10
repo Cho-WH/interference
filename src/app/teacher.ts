@@ -11,6 +11,7 @@ import { createTeacherStage, teacherFieldEnvelope } from '../presentation/stage'
 import { createPresenterControls, type PresenterAction } from '../ui/presenter-controls';
 import { createLessonEditor } from '../ui/lesson-editor';
 import { bindFieldInput } from '../ui/field-input';
+import { createFrameProbeGuide } from './probe-guide';
 import { sourceSeparation } from '../model/state';
 import { DEFAULT_PALETTE, type PaletteId } from '../visual/field-palettes';
 
@@ -155,7 +156,13 @@ export function mountApp(root: HTMLElement, session: AppSession) {
   }
   fieldInput = bindFieldInput(stage.fieldSvg, {
     getTransform: stage.getTransform, getModel: () => ({ ...frame.snapshot.model, probe: experiment.model.probe }),
-    getProbeGuide: () => undefined, // Prediction and free teaching do not snap to answer-bearing interference lines.
+    getProbeGuide: () => {
+      // Free exploration has an explain cue; prediction cues never reveal a line through touch.
+      if (!canInput('probe') || activeCue().revealPolicy !== 'explain') return undefined;
+      const bounds = experiment.model.bounds;
+      return createFrameProbeGuide(experiment.read({ x: 0, y: 0, ...bounds }),
+        point => point.x >= 0 && point.x <= bounds.width && point.y >= 0 && point.y <= bounds.height);
+    },
     getTargetSeparation: () => sourceSeparation(experiment.model),
     canInput, moveProbe: point => runner.manual({ type: 'probe', position: point }),
     setSeparation: value => runner.manual({ type: 'separation', value }),
