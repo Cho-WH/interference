@@ -133,7 +133,7 @@ export function createComparisonView(svg: SVGSVGElement) {
       const markY = options.fieldHeight + options.comparisonHeight - 11;
       wavelengthMark.render(markStart / drawingScale, markEnd / drawingScale, markY / drawingScale, wavelengthPixels / drawingScale, canCompare);
       setAttributes(wavelengthMarkGroup, { transform: options.presentation ? `scale(${drawingScale})` : null });
-      setAttributes(wavelengthLabel, { x: (markStart + markEnd) / 2, y: markY - 9 });
+      setAttributes(wavelengthLabel, { x: (markStart + markEnd) / 2, y: markY - 16 });
       setAttributes(wavelengthLabel, { visibility: canCompare ? 'visible' : 'hidden' });
       wavelengthLabel.textContent = `λ ${formatDistance(model.wavelength)}`;
 

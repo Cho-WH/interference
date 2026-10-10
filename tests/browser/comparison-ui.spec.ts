@@ -4,6 +4,38 @@ const comparison = '[data-view="comparison"]';
 const guide = '[data-same-distance-guide]';
 const ruler = '[data-path-difference-ruler]';
 
+for (const teacher of [false, true]) {
+  test(`stationary wavelength reference matches one ruler unit in ${teacher ? 'teacher' : 'exploration'} mode`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(teacher ? '/?mode=teacher' : '/');
+    if (teacher) {
+      await page.getByRole('button', { name: '1 / 8 · 전체 현상', exact: true }).click();
+      await page.getByRole('button', { name: '파장으로 비교', exact: true }).click();
+    } else await page.getByRole('button', { name: '경로 펼치기', exact: true }).click();
+    const reference = page.locator('[data-wavelength-mark] [data-ruler-reference-wave]');
+    await expect(reference).toBeVisible();
+    await expect(page.locator(`${ruler} [data-ruler-reference-wave]`)).toBeVisible();
+    const shape = await reference.evaluate(el => {
+      const parent = el.parentElement!, band = parent.querySelector('[data-ruler-band]')!;
+      const points = [...el.getAttribute('d')!.matchAll(/[ML]([\d.e+-]+),([\d.e+-]+)/g)].map(m => ({ x: Number(m[1]), y: Number(m[2]) }));
+      return { points, start: Number(band.getAttribute('x')), wavelength: Number(parent.getAttribute('data-wavelength-pixels')),
+        zero: Number(parent.getAttribute('data-zero-y')), opacity: Number(el.getAttribute('stroke-opacity')) };
+    });
+    const first = shape.points[0], last = shape.points.at(-1)!;
+    expect(last.x - first.x).toBeCloseTo(shape.wavelength, 2);
+    expect(first.y).toBeCloseTo(shape.zero, 2); expect(last.y).toBeCloseTo(shape.zero, 2);
+    const crest = shape.points.reduce((a, b) => a.y < b.y ? a : b);
+    const trough = shape.points.reduce((a, b) => a.y > b.y ? a : b);
+    expect(Math.abs(crest.x - shape.start - shape.wavelength / 4)).toBeLessThan(3);
+    expect(Math.abs(trough.x - crest.x - shape.wavelength / 2)).toBeLessThan(3);
+    expect(shape.opacity).toBeGreaterThan(0); expect(shape.opacity).toBeLessThan(1);
+    const curve = await reference.getAttribute('d');
+    const main = page.locator(comparison), time = Number(await main.getAttribute('data-time-seconds'));
+    await expect.poll(async () => Number(await main.getAttribute('data-time-seconds'))).toBeGreaterThan(time + .1);
+    await expect(reference).toHaveAttribute('d', curve!);
+  });
+}
+
 // Vertical SVG lines have zero-width boxes, so Playwright's visibility check
 // cannot distinguish a drawn line from a hidden one.
 const guideDrawn = (page: Page) => page.locator(guide).evaluate(line => {
@@ -103,9 +135,9 @@ test('fixed half-wave ruler highlights the exact difference between both endpoin
       const geometry = await page.evaluate(() => {
         const box = (selector: string) => document.querySelector<SVGGraphicsElement>(selector)!.getBBox();
         const num = (selector: string, name: string) => Number(document.querySelector(selector)!.getAttribute(name));
-        const ruler = box('[data-path-difference-ruler]');
+        const ruler = box('[data-path-difference-ruler] [data-ruler-band]');
         const shade = box('[data-path-difference-ruler] [data-ruler-highlight]');
-        const mark = box('[data-wavelength-mark]');
+        const mark = box('[data-wavelength-mark] [data-ruler-band]');
         const endpoints = [1, 2].map(i => num(`[data-path-end="source-${i}"]`, 'cx'));
         const d = document.querySelector('[data-wavelength-mark] [data-ruler-divisions]')!.getAttribute('d')!;
         // Reference end divisions span λ, with a smaller λ/2 tick.
