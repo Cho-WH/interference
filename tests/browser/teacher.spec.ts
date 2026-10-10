@@ -506,8 +506,9 @@ test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' 
   const parallel = samples.find(sample => sample.name === 'parallel')!.main;
   const middle = samples.find(sample => sample.name === 'zoom-middle')!.main;
   const enlarged = samples.find(sample => sample.name === 'enlarged')!.main;
-  expect(middle.rows[0].scale).toBeCloseTo(parallel.rows[0].scale, 6);
-  expect(enlarged.rows[0].scale).toBeCloseTo(parallel.rows[0].scale, 6);
+  // SVG screen matrices round coordinates to floats; compare relative scale.
+  expect(middle.rows[0].scale / parallel.rows[0].scale).toBeCloseTo(1, 6);
+  expect(enlarged.rows[0].scale / parallel.rows[0].scale).toBeCloseTo(1, 6);
   expect(samples.find(sample => sample.name === 'reverse-start')!.main).toEqual(middle);
   if (!stageSize.mobile) expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).not.toBeNull();
   else expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).toBeNull();
