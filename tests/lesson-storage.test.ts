@@ -38,7 +38,7 @@ test('edited presets cannot retain built-in numerical claims, but teacher-author
   assert.notEqual(teachingCopy(cue, lesson, false).question, cue.question);
   cue.question = '교사가 새 조건에 맞춰 작성한 질문';
   assert.equal(teachingCopy(cue, lesson, false).question, cue.question);
-  assert.match(teachingCopy(cue, lesson, true).question!, /조건이 달라/);
+  assert.equal(teachingCopy(cue, lesson, true).question, cue.question);
 });
 
 test('scene moves retain protected ordering and relink the following action', () => {

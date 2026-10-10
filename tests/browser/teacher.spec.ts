@@ -31,6 +31,37 @@ async function geometry(page: Page) {
   }));
 }
 
+test('moving P after observing its vibration keeps stage-specific guidance throughout analysis', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/?mode=teacher'); await at(page, 's1-field');
+  await advance(page, 'P의 진동 보기', 's1-probe');
+  await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
+  const initialX = Number(await state(page, 'probe-x'));
+  await page.getByRole('button', { name: '관측점 P. 방향키로 이동', exact: true }).press('ArrowLeft');
+  await expect.poll(async () => Number(await state(page, 'probe-x'))).toBeCloseTo(initialX - .005, 10);
+  const movedX = await state(page, 'probe-x');
+  const question = page.locator('.teacher-question');
+  await expect(question).toHaveText('주변에는 변화가 있는데, P의 합은 시간이 지나도 어떨까요?');
+  await advance(page, '첫 번째 경로 보기', 's2-path1');
+  await expect(question).toHaveText('파원 1의 파동은 P에서 어떻게 진동하나요?');
+  await advance(page, '두 번째 경로 보기', 's2-path2');
+  await expect(question).toHaveText('파원 2의 파동도 P에 도착하고 있나요?');
+  await advance(page, '두 경로 함께 보기', 's2-both');
+  await advance(page, '멈추고 펼치기', 's3-parallel');
+  await expect(question).toHaveText('거리를 바꾼 걸까요, 같은 경로를 펼친 걸까요?');
+  await advance(page, '크게 비교하기', 's4-fit');
+  await advance(page, '같은 거리 짚기', 's4-common');
+  await advance(page, '남는 길이 보기', 's4-extra');
+  await advance(page, '파장 눈금 보기', 's4-ruler');
+  await advance(page, '거리 수치 확인', 's4-values');
+  await expect(question).toHaveText('지금의 경로차는 파장의 몇 배이며, P에서 어떤 위상차를 만들까요?');
+  await advance(page, '도착점 보기', 's5-endpoints');
+  await advance(page, '재생하며 관찰', 's5-components-playing');
+  await advance(page, '합 공개', 's5-sum');
+  await expect(question).toHaveText('두 성분의 변위와 P의 합성 진동은 어떻게 연결되나요?');
+  expect(await state(page, 'probe-x')).toBe(movedX);
+});
+
 test('prediction masks every answer channel and a paused cross-context jump waits without auto reveal', async ({ page }) => {
   await page.goto('/?mode=teacher'); await at(page, 's1-field');
   await page.getByRole('button', { name: '파동 일시 정지 (K)', exact: true }).click();
