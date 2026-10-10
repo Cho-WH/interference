@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createLessonModel, EXPERIMENTS } from '../src/lesson/default-lesson';
 import { createRetardedEngine } from '../src/physics/retarded-engine';
 import { placePathPoint, visibleFieldBounds, toScreen, type PathPlacement } from '../src/geometry/layout';
-import { teacherCorrespondence, teacherFieldEnvelope, teacherFieldTransform, teacherPose, type TeacherPose } from '../src/presentation/layout';
+import { teacherCorrespondence, teacherCorrespondenceFits, teacherFieldEnvelope, teacherFieldTransform, teacherPose, type TeacherPose } from '../src/presentation/layout';
 import { createPresentationAnimator, interpolateTeacherPose } from '../src/presentation/animator';
 
 const close = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} ≠ ${b}`);
@@ -56,6 +56,10 @@ test('reduced-motion simultaneous diagrams use the same path and displacement sc
   const original = teacherPose(frame.snapshot, 1280, 600, 'spatial-paths');
   sameWave(original, spatial);
   sameWave(original, parallel);
+  close(spatial.layout.distanceScale, original.layout.distanceScale);
+  close(parallel.layout.displacementScale, original.layout.displacementScale);
+  assert.equal(teacherCorrespondenceFits(frame.snapshot, 1280, 600), true);
+  assert.equal(teacherCorrespondenceFits(frame.snapshot, 390, 600), false);
   for (const i of [0, 1]) {
     close(spatial.placements[i].distanceScale, parallel.placements[i].distanceScale);
     close(spatial.placements[i].displacementScale, parallel.placements[i].displacementScale);
@@ -116,10 +120,10 @@ test('a frozen waveform has one magnification through every zoom, focus and fold
   }
 });
 
-test('portrait phone layouts keep the original wave size through analysis and endpoint disclosures', () => {
+test('all teacher layouts keep the original wave size through analysis and endpoint disclosures', () => {
   const kinds = ['field', 'spatial-paths', 'parallel', 'path-comparison', 'endpoint-comparison'] as const;
   const presets = [...Object.values(EXPERIMENTS), { probe: { x: 1.2, y: 0 }, wavelength: .15, separation: .54 }];
-  for (const [width, height] of [[320, 568], [390, 744], [699, 844], [390, 400]]) {
+  for (const [width, height] of [[320, 568], [390, 744], [699, 844], [390, 400], [1280, 600], [1920, 980], [1024, 500]]) {
     const original = teacherPose(frame.snapshot, width, height, 'spatial-paths');
     for (const preset of presets) {
       const experiment = createLessonModel(preset);
@@ -163,8 +167,8 @@ test('reversing an unfinished zoom preserves the current waveform and one shared
   close(moving.magnification, parallel.magnification);
   sameWave(spatial, moving);
   const middle = animator.sample(390)!;
-  assert.ok(middle.layout.distanceScale > parallel.layout.distanceScale);
-  assert.ok(middle.layout.distanceScale < enlarged.layout.distanceScale);
+  close(middle.layout.distanceScale, parallel.layout.distanceScale);
+  close(middle.layout.distanceScale, enlarged.layout.distanceScale);
   animator.setTarget(spatial, 'fold-to-field', 390);
   const reversed = animator.sample(390)!;
   assert.deepEqual(reversed.placements, middle.placements);

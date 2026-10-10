@@ -16,8 +16,13 @@ export function loadLesson(storage: Storage = localStorage): LessonSpec | undefi
   if (!text) return;
   const lesson = parseLesson(text);
   // Upgrade only an untouched built-in revision. Never replace teacher edits.
-  if (lesson.id === DEFAULT_LESSON.id && lesson.revision === 4) {
-    const previous = structuredClone(DEFAULT_LESSON); previous.revision = 4;
+  if (lesson.id === DEFAULT_LESSON.id && [4, 5].includes(lesson.revision)) {
+    const previous = structuredClone(DEFAULT_LESSON); previous.revision = lesson.revision;
+    previous.scenes[2].cues[0].nextAction = { ...previous.scenes[2].cues[0].nextAction!, label: '크게 비교하기' };
+    previous.scenes[3].cues[0].label = '크게 비교';
+    previous.scenes[5].cues[2].teacherNotes = '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.';
+    if (JSON.stringify(lesson) === JSON.stringify(previous)) return structuredClone(DEFAULT_LESSON);
+    if (lesson.revision !== 4) return lesson;
     const b = previous.scenes[5].cues[1];
     b.visible = b.visible.filter(id => id !== 'field');
     b.teacherNotes = 'P를 옮겨도 두 경로 위 파형을 유지합니다. 합성 진동과 간섭무늬는 가리고, 이동이 끝나면 관찰할 시간을 둡니다.';

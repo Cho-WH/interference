@@ -72,8 +72,22 @@ test('failed import/storage validation preserves a previous saved lesson', () =>
   assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
 });
 
+test('untouched saved revision 5 receives fixed-scale lesson labels, but teacher edits survive', () => {
+  const legacy = structuredClone(DEFAULT_LESSON); legacy.revision = 5;
+  legacy.scenes[2].cues[0].nextAction = { ...legacy.scenes[2].cues[0].nextAction!, label: '크게 비교하기' };
+  legacy.scenes[3].cues[0].label = '크게 비교';
+  legacy.scenes[5].cues[2].teacherNotes = '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.';
+  const storage = { getItem: (key: string) => key === LESSON_STORAGE_KEY ? JSON.stringify(legacy) : null } as Storage;
+  assert.deepEqual(loadLesson(storage), DEFAULT_LESSON);
+  legacy.scenes[0].cues[0].question = '교사가 수정한 질문';
+  assert.deepEqual(loadLesson(storage), legacy);
+});
+
 test('untouched saved revision 4 receives the spatial B background, but teacher edits survive', () => {
   const legacy = structuredClone(DEFAULT_LESSON); legacy.revision = 4;
+  legacy.scenes[2].cues[0].nextAction = { ...legacy.scenes[2].cues[0].nextAction!, label: '크게 비교하기' };
+  legacy.scenes[3].cues[0].label = '크게 비교';
+  legacy.scenes[5].cues[2].teacherNotes = '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.';
   legacy.scenes[0].cues[1].teacherNotes = 'P는 관측 위치입니다. 옆의 보라색 점이 그곳의 순간 변위를 나타냅니다. 두 주기 이상 관찰합니다.';
   const b = legacy.scenes[5].cues[1]; b.visible = b.visible.filter(id => id !== 'field');
   b.teacherNotes = 'P를 옮겨도 두 경로 위 파형을 유지합니다. 합성 진동과 간섭무늬는 가리고, 이동이 끝나면 관찰할 시간을 둡니다.';

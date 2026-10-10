@@ -26,7 +26,7 @@ for (const width of [1280, 390]) {
     await page.getByRole('button', { name: '관측점 P. 방향키로 이동', exact: true }).press('ArrowLeft');
     await expect.poll(async () => Number(await state(page, 'probe-x'))).toBeCloseTo(before - .005, 10);
     await advance(page, '멈추고 펼치기', 's3-parallel'); await badges();
-    await advance(page, '크게 비교하기', 's4-fit'); await badges();
+    await advance(page, '나란히 비교하기', 's4-fit'); await badges();
     await page.getByRole('button', { name: '이전', exact: true }).click(); await at(page, 's3-parallel');
     await page.getByRole('button', { name: '이전', exact: true }).click(); await at(page, 's2-both'); await badges();
   });
@@ -102,7 +102,7 @@ test('moving P after observing its vibration keeps stage-specific guidance throu
   await advance(page, '두 경로 함께 보기', 's2-both');
   await advance(page, '멈추고 펼치기', 's3-parallel');
   await expect(question).toHaveText('거리를 바꾼 걸까요, 같은 경로를 펼친 걸까요?');
-  await advance(page, '크게 비교하기', 's4-fit');
+  await advance(page, '나란히 비교하기', 's4-fit');
   await advance(page, '같은 거리 짚기', 's4-common');
   await advance(page, '남는 길이 보기', 's4-extra');
   await advance(page, '파장 눈금 보기', 's4-ruler');
@@ -217,7 +217,7 @@ test('ordinary entry and direct teacher reload both open the independent lesson 
   await expect(page.locator(shell)).toHaveCount(0);
 });
 
-test('unfold, manual stop, common zoom and separate disclosures retain one physical experiment', async ({ page }) => {
+test('unfold, manual stop, fixed-scale comparison and separate disclosures retain one physical experiment', async ({ page }) => {
   await page.goto('/?mode=teacher');
   await at(page, 's1-field');
   await reachBoth(page);
@@ -235,12 +235,12 @@ test('unfold, manual stop, common zoom and separate disclosures retain one physi
   await at(page, 's3-parallel');
   const pausedTime = await state(page, 'time-seconds');
   expect(await state(page, 'playing')).toBe('false');
-  await expect(page.getByRole('button', { name: '크게 비교하기', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '나란히 비교하기', exact: true })).toBeVisible();
   await expect(page.locator(`${comparison} [data-marker="sum"]`)).toBeHidden();
   await expect(page.locator(`${comparison} [data-path-distance="source-1"]`)).toBeHidden();
-  await advance(page, '크게 비교하기', 's4-fit');
+  await advance(page, '나란히 비교하기', 's4-fit');
   const enlarged = await geometry(page);
-  expect(enlarged[0].scale).toBeGreaterThan(spatial[0].scale);
+  expect(enlarged[0].scale).toBeCloseTo(spatial[0].scale, 7);
   expect(enlarged[0].scale).toBeCloseTo(enlarged[1].scale, 7);
   enlarged.forEach(row => expect(row.length).toBeCloseTo(row.distance * row.scale, 7));
   expect(await state(page, 'time-seconds')).toBe(pausedTime);
@@ -329,7 +329,7 @@ test('phone lesson reveals and backward navigation never resize the frozen waves
     expect(await state(page, 'time-seconds')).toBe(frozenTime);
   };
   for (const [label, cue] of [
-    ['멈추고 펼치기', 's3-parallel'], ['크게 비교하기', 's4-fit'], ['같은 거리 짚기', 's4-common'],
+    ['멈추고 펼치기', 's3-parallel'], ['나란히 비교하기', 's4-fit'], ['같은 거리 짚기', 's4-common'],
     ['남는 길이 보기', 's4-extra'], ['파장 눈금 보기', 's4-ruler'], ['거리 수치 확인', 's4-values'],
     ['도착점 보기', 's5-endpoints'],
   ]) {
@@ -355,7 +355,7 @@ test('finishing an interrupted transition cannot disclose the next stage and CPU
   await page.getByRole('button', { name: '전환 건너뛰기', exact: true }).click();
   await at(page, 's3-parallel');
   const time = await state(page, 'time-seconds');
-  await page.getByRole('button', { name: '크게 비교하기', exact: true }).click();
+  await page.getByRole('button', { name: '나란히 비교하기', exact: true }).click();
   await expect(page.locator(shell)).toHaveAttribute('data-transitioning', 'true');
   await page.getByRole('button', { name: '이전', exact: true }).click();
   await at(page, 's3-parallel');
@@ -396,7 +396,7 @@ test('teacher resources are released on an explicit session disposal', async ({ 
 });
 
 for (const stageSize of [{ width: 1280, height: 600, mobile: false }, { width: 390, height: 744, mobile: true }]) {
-test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' : 'desktop zoom'} through reversal and reduced motion`, async ({ page }) => {
+test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' : 'desktop size'} through reversal and reduced motion`, async ({ page }) => {
   await page.setViewportSize({ width: stageSize.width, height: stageSize.height + 100 });
   await page.goto('/?mode=teacher');
   await at(page, 's1-field');
@@ -506,10 +506,8 @@ test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' 
   const parallel = samples.find(sample => sample.name === 'parallel')!.main;
   const middle = samples.find(sample => sample.name === 'zoom-middle')!.main;
   const enlarged = samples.find(sample => sample.name === 'enlarged')!.main;
-  if (!stageSize.mobile) {
-    expect(middle.rows[0].scale).toBeGreaterThan(parallel.rows[0].scale);
-    expect(middle.rows[0].scale).toBeLessThan(enlarged.rows[0].scale);
-  }
+  expect(middle.rows[0].scale).toBeCloseTo(parallel.rows[0].scale, 6);
+  expect(enlarged.rows[0].scale).toBeCloseTo(parallel.rows[0].scale, 6);
   expect(samples.find(sample => sample.name === 'reverse-start')!.main).toEqual(middle);
   if (!stageSize.mobile) expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).not.toBeNull();
   else expect(samples.find(sample => sample.name === 'reduced-split')!.counterpart).toBeNull();
@@ -517,7 +515,7 @@ test(`teacher wave geometry and ink preserve ${stageSize.mobile ? 'mobile size' 
   for (const sample of samples) {
     for (const actual of [sample.main, sample.counterpart].filter(value => value !== null)) {
       const zoom = actual.rows[0].scale / reference.rows[0].scale;
-      if (stageSize.mobile) expect(zoom, sample.name).toBeCloseTo(1, 6);
+      expect(zoom, sample.name).toBeCloseTo(1, 6);
       expect(actual.time, sample.name).toBe(reference.time);
       actual.rows.forEach((row, index) => {
         const before = reference.rows[index];

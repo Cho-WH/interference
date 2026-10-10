@@ -26,7 +26,7 @@ export function teacherFieldTransform(model: ModelState, width: number, height: 
 export function teacherPose(snapshot: PhysicsSnapshot, width: number, height: number, kind: LayoutId): TeacherPose {
   const camera = teacherFieldTransform(snapshot.model, width, height);
   const spatial = kind === 'field' || kind === 'spatial-paths', parallel = kind === 'parallel';
-  const compact = width < 700, endpoint = kind === 'endpoint-comparison';
+  const compact = width < 700;
   const baseAmplitude = 24 * Math.min(1, width / 1000);
   const baseDisplacement = baseAmplitude / .01;
   const left = compact ? 34 : width * .115625;
@@ -36,16 +36,13 @@ export function teacherPose(snapshot: PhysicsSnapshot, width: number, height: nu
   const center = (contentTop + contentBottom) / 2;
   const rowRail = compact ? 54 : 70;
   const maxDistance = Math.max(...snapshot.probe.distances, .01);
-  const horizontal = (pointX - left - (compact ? 32 : 110)) / (maxDistance * camera.scale);
-  const desired = (endpoint ? 1560 : 1320) * width / 1280 / camera.scale;
-  const vertical = Math.max(.15, (contentBottom - contentTop - rowRail) / (4 * baseAmplitude + 14));
-  // Narrow stages keep the original wave size throughout the lesson. Rearrange
-  // rows and annotations instead of refitting the wave at each analysis layout.
-  const magnification = compact || spatial || parallel ? 1 : Math.max(.15, Math.min(desired, vertical, endpoint ? desired : horizontal));
+  // Every scene keeps the spatial wave size. Only a viewport resize may
+  // recalculate the common scale; analysis moves the rows without zooming.
+  const magnification = 1;
   const scale = camera.scale * magnification, amplitude = baseAmplitude * magnification;
   const gap = Math.max(2 * amplitude + rowRail, Math.min(156 * height / 664, 176));
   const rows: [number, number] = [center - gap / 2, center + gap / 2];
-  const startX = compact || endpoint ? Math.min(left, pointX - (compact ? 32 : 150) - maxDistance * scale) : left;
+  const startX = Math.min(left, pointX - (compact ? 32 : 110) - maxDistance * scale);
   const probe = toScreen(snapshot.model.probe, camera);
   const placements = snapshot.probe.origins.map((origin, i) => {
     const source = toScreen(origin, camera);
@@ -76,10 +73,10 @@ export function updatePoseGeometry(pose: TeacherPose, snapshot: PhysicsSnapshot,
 }
 export function teacherCorrespondence(snapshot: PhysicsSnapshot, width: number, height: number): { spatial: TeacherPose; parallel: TeacherPose } {
   const base = teacherPose(snapshot, width, height, 'parallel');
-  const origin = snapshot.probe.origins[0], maxR = Math.max(...snapshot.probe.distances, .1);
-  const scale = Math.min((width / 2 - 100) / (maxR + .1), (height - 290) / .5);
-  const magnification = scale / base.layout.distanceScale;
-  const y = 235, rows = snapshot.probe.origins.map(o => y + (o.y - origin.y) * scale) as unknown as SourcePair<number>;
+  const origin = snapshot.probe.origins[0];
+  const scale = base.layout.distanceScale, magnification = 1;
+  const span = Math.abs(snapshot.probe.origins[1].y - origin.y) * scale;
+  const y = Math.max(170, (height - span) / 2), rows = snapshot.probe.origins.map(o => y + (o.y - origin.y) * scale) as unknown as SourcePair<number>;
   function make(spatial: boolean): TeacherPose {
     const startX = spatial ? 72 : width / 2 + 62;
     const placements = snapshot.probe.origins.map((o, i) => ({
@@ -91,4 +88,17 @@ export function teacherCorrespondence(snapshot: PhysicsSnapshot, width: number, 
       distanceScale: scale, displacementScale: placements[0].displacementScale, componentAmplitudePx: base.layout.componentAmplitudePx * magnification }, backgroundOpacity: 0 };
   }
   return { spatial: make(true), parallel: make(false) };
+}
+
+export function teacherCorrespondenceFits(snapshot: PhysicsSnapshot, width: number, height: number): boolean {
+  if (width < 900) return false;
+  const poses = teacherCorrespondence(snapshot, width, height);
+  return Object.values(poses).every((pose, side) => pose.placements.every((placement, i) => {
+    const end = { x: placement.origin.x + Math.cos(placement.angle) * snapshot.probe.distances[i] * placement.distanceScale,
+      y: placement.origin.y + Math.sin(placement.angle) * snapshot.probe.distances[i] * placement.distanceScale };
+    const margin = pose.layout.componentAmplitudePx + 16;
+    return Math.min(placement.origin.x, end.x) >= side * width / 2 + margin &&
+      Math.max(placement.origin.x, end.x) <= (side + 1) * width / 2 - margin &&
+      Math.min(placement.origin.y, end.y) >= 140 + margin && Math.max(placement.origin.y, end.y) <= height - 70 - margin;
+  }));
 }

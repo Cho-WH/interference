@@ -32,7 +32,7 @@ function cue(id: string, label: string, question: string, next: string | undefin
 const waiting = (holdCueId: string) => ({ scope: 'analysis-steady' as const, holdCueId });
 
 export const DEFAULT_LESSON: LessonSpec = {
-  schemaVersion: 1, id: 'path-difference-lesson', revision: 5,
+  schemaVersion: 1, id: 'path-difference-lesson', revision: 6,
   engineContract: 'wave-frame-v1', modelProfile: 'equal-phase-equal-amplitude-v1',
   title: '두 파동이 모두 도착하는데, 왜 P는 진동하지 않을까?',
   motionSpeed: 'normal', experiments: EXPERIMENTS,
@@ -58,12 +58,12 @@ export const DEFAULT_LESSON: LessonSpec = {
           teacherNotes: '누른 순간의 파형을 멈춘 뒤 각 파원을 중심으로 경로를 회전합니다.' }),
     ] },
     { id: 'scene-3', title: '같은 두 경로 펼치기', cues: [
-      cue('s3-parallel', '제자리 펼침', '거리를 바꾼 걸까요, 같은 경로를 펼친 걸까요?', '크게 비교하기',
+      cue('s3-parallel', '제자리 펼침', '거리를 바꾼 걸까요, 같은 경로를 펼친 걸까요?', '나란히 비교하기',
         { layout: 'parallel', transition: 'unfold-in-place',
           teacherNotes: '두 끝은 같은 P의 두 성분입니다. 길이와 파형은 그대로입니다. 여기서 충분히 기다립니다.' }),
     ] },
     { id: 'scene-4', title: '경로차와 파장', cues: [
-      cue('s4-fit', '크게 비교', '두 파동은 어디까지 같은 거리를 이동했나요?', '같은 거리 짚기',
+      cue('s4-fit', '나란히 비교', '두 파동은 어디까지 같은 거리를 이동했나요?', '같은 거리 짚기',
         { transition: 'fit-paths', teacherNotes: '행 사이 간격은 화면 배치입니다. 실제 파원 간격을 바꾸지 않았습니다.' }),
       cue('s4-common', '같은 거리', '같은 거리까지의 파형은 어떤 관계인가요?', '남는 길이 보기',
         { visible: common, waitFor: waiting('s4-fit'),
@@ -98,7 +98,7 @@ export const DEFAULT_LESSON: LessonSpec = {
       cue('s6-b-parallel', 'B의 두 경로 펼치기', '방금 본 두 경로를 같은 축척으로 비교해 보세요.', '거리와 파장 비교',
         { experimentContextId: 'B', layout: 'parallel', transition: 'unfold-in-place',
           visible: parallel, revealPolicy: 'predict-sum', allowedInputs: [],
-          teacherNotes: '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서 확대하고 거리·파장을 공개합니다.' }),
+          teacherNotes: '두 길이를 바꾸지 않고 회전·이동만 합니다. 다음 동작에서도 파동 크기를 유지하고 거리·파장을 공개합니다.' }),
       cue('s6-b-predict', '한 파장 차이 예측', '한 파장 차이면, 더 많이 상쇄될까요?', '경로와 성분 확인',
         { experimentContextId: 'B', transition: 'fit-paths', visible: [...parallel, 'distance-values', 'condition-values'], revealPolicy: 'predict-sum', allowedInputs: [],
           teacherNotes: '거리·λ와 경로 위 두 파형을 함께 보고 합을 예상합니다. 합은 별도 공개할 때까지 가립니다.' }),

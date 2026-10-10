@@ -5,7 +5,7 @@ import { placePathPoint, visibleFieldBounds } from '../geometry/layout';
 import { createFieldView } from '../views/field';
 import { createComparisonView, type ComparisonDisplay } from '../views/comparison';
 import { svgElement, svgText, setAttributes } from '../visual/svg';
-import { teacherCorrespondence, teacherFieldTransform, teacherPose, updatePoseGeometry, type TeacherPose } from './layout';
+import { teacherCorrespondence, teacherCorrespondenceFits, teacherFieldTransform, teacherPose, updatePoseGeometry, type TeacherPose } from './layout';
 import { createPresentationAnimator } from './animator';
 import { resolveVisibility } from '../lesson/reveal-policy';
 import { DEFAULT_PALETTE, type PaletteId } from '../visual/field-palettes';
@@ -99,7 +99,7 @@ export function createTeacherStage(container: HTMLElement, options: {
       // Distances, ray angles and the displayed P all come from one engine frame.
       if (movingProbe) pose = updatePoseGeometry(pose, frame.snapshot, cue.layout);
       const staticCorrespondence = reduced && cue.layout === 'parallel';
-      const split = staticCorrespondence && width >= 900;
+      const split = staticCorrespondence && teacherCorrespondenceFits(frame.snapshot, width, height);
       const diagram = split ? teacherCorrespondence(frame.snapshot, width, height) : undefined;
       if (diagram) pose = diagram.parallel;
       else if (staticCorrespondence && reducedSpatial) pose = { ...teacherPose(frame.snapshot, width, height, 'spatial-paths'), backgroundOpacity: 0 };

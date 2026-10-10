@@ -41,10 +41,8 @@ export function createPresentationAnimator() {
     let geometry = ease(p);
     if (transition === 'unfold-in-place') geometry = pathEase((elapsed - 180) / 1000);
     if (transition === 'fold-to-field') geometry = ease(p / .86);
-    // Move each row as a rigid object first, then enlarge the complete drawing.
-    const movingRows = transition === 'fit-paths';
-    current = interpolateTeacherPose(from, target, movingRows ? ease(elapsed / 300) : geometry,
-      movingRows ? ease((elapsed - 300) / 480) : geometry);
+    // Move each row as a rigid object while retaining the common wave scale.
+    current = interpolateTeacherPose(from, target, geometry);
     if (transition === 'unfold-in-place') {
       const background = ease((elapsed - 260) / 820);
       current = { ...current, backgroundOpacity: mix(from.backgroundOpacity, target.backgroundOpacity, background),
