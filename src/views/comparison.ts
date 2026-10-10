@@ -3,6 +3,7 @@ import { computeComparisonLayout, interpolatePathPlacement, placePathPoint, toSc
 import { createDisplacementMarker, pathFromPoints, setAttributes, setLine, setPoint, SOURCE_COLORS, SUM_COLOR, svgElement, svgText } from '../visual/svg';
 import { comparisonCopy, formatDistance } from '../ui/copy';
 import { createWavelengthRuler } from '../visual/wavelength-ruler';
+import { createSourceBadge } from '../visual/point-markers';
 
 export type ComparisonRenderOptions = Readonly<{
   width: number;
@@ -51,14 +52,13 @@ export function createComparisonView(svg: SVGSVGElement) {
     const group = svgElement('g', { 'data-source-row': `source-${index + 1}` }, root);
     const baseline = svgElement('line', { stroke: color, 'stroke-width': 1.2, 'stroke-opacity': 0.35, 'data-path-baseline': `source-${index + 1}` }, group);
     const curve = svgElement('path', { fill: 'none', stroke: color, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'data-wave-path': `source-${index + 1}` }, group);
-    const start = svgElement('circle', { r: 7, fill: color, stroke: 'white', 'stroke-width': 1.8 }, group);
-    const startNumber = svgText(group, String(index + 1), { fill: 'white', 'font-size': 9, 'font-weight': 750, 'text-anchor': 'middle', 'dominant-baseline': 'central' });
+    const sourceBadge = createSourceBadge(group, String(index + 1), color);
     const end = svgElement('circle', { r: 4.5, fill: color, stroke: 'white', 'stroke-width': 1.8, 'data-path-end': `source-${index + 1}` }, group);
     const probeZero = svgElement('circle', { r: 5, fill: 'white', stroke: color, 'stroke-width': 2, display: 'none' }, group);
     const probeLabel = svgText(group, 'P', { fill: color, 'font-size': 20, display: 'none', 'font-style': 'italic' });
     const sourceLabel = svgText(annotationLayer, comparisonCopy.sourceNames[index], { fill: color, 'font-weight': 700 });
     const distanceLabel = svgText(annotationLayer, '', { 'font-size': 12, 'font-weight': 600, 'text-anchor': 'end', 'data-path-distance': `source-${index + 1}` });
-    return { group, baseline, curve, start, startNumber, end, probeZero, probeLabel, sourceLabel, distanceLabel };
+    return { group, baseline, curve, sourceBadge, end, probeZero, probeLabel, sourceLabel, distanceLabel };
   });
   const settledLayer = svgElement('g', { 'data-comparison-settled': '', display: 'none' }, root);
   const extraBand = svgElement('rect', { height: 8, rx: 3, fill: '#bfdccf', 'data-extra-path-band': '', display: 'none' }, settledLayer);
@@ -158,8 +158,6 @@ export function createComparisonView(svg: SVGSVGElement) {
         const points = samples.distances.map((sampleDistance, sampleIndex) => placePathPoint(sampleDistance, samples.displacements[sampleIndex], placement));
         setLine(row.baseline, baselineStart, baselineEnd);
         setAttributes(row.curve, { d: pathFromPoints(points), opacity: 1 });
-        setPoint(row.start, baselineStart);
-        setAttributes(row.startNumber, { x: baselineStart.x, y: baselineStart.y });
         setPoint(row.end, endpoint);
         setPoint(row.probeZero, baselineEnd);
         setAttributes(row.probeLabel, { x: baselineEnd.x + 15, y: baselineEnd.y + 7 });
@@ -179,17 +177,14 @@ export function createComparisonView(svg: SVGSVGElement) {
         setAttributes(row.distanceLabel, { x: options.presentation ? Math.min(options.width - 32, Math.max(100, baselineEnd.x)) : pointX - 30, y: labelY });
         row.distanceLabel.textContent = formatDistance(distance);
         const pastOrigin = Math.hypot(probe.origins[index].x - model.sources[index].position.x, probe.origins[index].y - model.sources[index].position.y) > 1e-6;
-        setAttributes(row.start, { fill: pastOrigin ? 'white' : SOURCE_COLORS[index], stroke: SOURCE_COLORS[index] });
-        setAttributes(row.startNumber, { fill: pastOrigin ? SOURCE_COLORS[index] : 'white' });
+        row.sourceBadge.render(baselineStart.x, baselineStart.y, drawingScale, pastOrigin, !options.presentation);
         const pointY = rowZeros[index] - displacement * displacementScale;
         setLine(connections[index], { x: startX + distance * layout.distanceScale, y: pointY }, { x: pointX, y: pointY });
         markers[index].render(pointX, rowZeros[index], displacement, displacementScale, model.sources[index].amplitude, markerAppearance);
         if (options.presentation) {
           setAttributes(row.baseline, { 'stroke-width': 1.8 * drawingScale });
           setAttributes(row.curve, { 'stroke-width': 3.2 * drawingScale, 'stroke-dasharray': index ? `${10 * drawingScale} ${3 * drawingScale}` : null });
-          setAttributes(row.start, { r: 7 * drawingScale, 'stroke-width': 1.8 * drawingScale });
           setAttributes(row.end, { r: 6 * drawingScale, 'stroke-width': 1.8 * drawingScale });
-          row.startNumber.style.fontSize = `${10 * drawingScale}px`;
           setAttributes(connections[index], { 'stroke-width': 2 * drawingScale, 'stroke-dasharray': `${3 * drawingScale} ${5 * drawingScale}` });
         }
       });

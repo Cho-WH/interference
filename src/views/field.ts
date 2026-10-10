@@ -7,6 +7,7 @@ import { formatDistance } from '../ui/copy';
 import { createDisplacementMarker, pathFromPoints, setAttributes, setLine, SUM_COLOR, svgElement as element } from '../visual/svg';
 import type { PaletteId } from '../visual/field-palettes';
 import { createFieldSurface } from '../rendering/field-surface';
+import { createProbeMarker, createSourceBadge } from '../visual/point-markers';
 const colors = ['#51dfce', '#ffb16b'] as const;
 
 /** Optional presentation policy; omitted options preserve the ordinary explorer. */
@@ -22,6 +23,8 @@ export type FieldDisplayOptions = Readonly<{
   sourceInput?: boolean;
   localProbeResult?: boolean;
   displacementScale?: number;
+  /** Path badges own the visible source when they coincide with its handle. */
+  pathSourceBadges?: SourcePair<boolean>;
 }>;
 
 export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, invalidate: () => void, report?: (event: string, error?: unknown) => void) {
@@ -48,24 +51,16 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
     group.style.pointerEvents = 'all';
     const hit = element('circle', { r: FIELD_HANDLE_HIT_RADIUS, fill: 'transparent' });
     const focus = element('circle', { class: 'handle-focus', r: '20', fill: 'none', stroke: '#fff', 'stroke-dasharray': '3 3', 'stroke-width': '1.5' });
-    const ring = element('circle', { r: 12, fill: '#102a37', 'fill-opacity': probe ? .30 : 1, stroke: color, 'stroke-width': 2.5 });
-    group.append(hit, focus, ring);
+    group.append(hit, focus);
     if (probe) {
-      // Share the source handle's circle; a translucent interior keeps the field
-      // visible while the small center dot marks the exact observation point.
-      const center = element('circle', { r: 1.8, fill: '#f6faf8', stroke: '#12212b', 'stroke-width': 1.2, 'pointer-events': 'none' });
-      const text = element('text', { x: 19, y: 5, fill: '#f6faf8', 'font-style': 'italic', 'font-size': 15, 'font-weight': 400, 'paint-order': 'stroke', stroke: '#12212b', 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'pointer-events': 'none', 'data-probe-label': '' });
-      text.style.fontFamily = 'Cambria, Georgia, serif';
-      text.textContent = glyph;
-      group.append(center, text);
+      createProbeMarker(group, color);
     } else {
-      const text = element('text', { y: '4.5', 'text-anchor': 'middle', fill: color, 'font-size': '12', 'font-weight': '800', 'pointer-events': 'none' });
-      text.textContent = glyph;
-      group.append(text);
+      createSourceBadge(group, glyph, color);
     }
     return group;
   }
   const sources = [handle('source-1', '파원 1. 위아래 방향키로 파원 간격 조절', '1', colors[0]), handle('source-2', '파원 2. 위아래 방향키로 파원 간격 조절', '2', colors[1])];
+  const sourceBadges = sources.map(source => source.querySelector<SVGGElement>('[data-source-badge]')!);
   const probe = handle('probe', '관측점 P. 방향키로 이동', 'P', '#fff', true);
   const probeLabel = probe.querySelector<SVGTextElement>('[data-probe-label]')!;
   const gap = handle('source-gap', '두 파원 간격. 위로 끌면 넓어지고 아래로 끌면 좁아져요.', '↕', '#e9f6f3');
@@ -130,6 +125,7 @@ export function createFieldView(canvas: HTMLCanvasElement, svg: SVGSVGElement, i
         const s = toScreen(source.position, transform);
         const origin = toScreen(snapshot.probe.origins[i], transform);
         const target = targetPositions ? toScreen(targetPositions[i], transform) : s;
+        setAttributes(sourceBadges[i], { visibility: display.pathSourceBadges?.[i] && Math.hypot(origin.x - s.x, origin.y - s.y) < .01 ? 'hidden' : 'visible' });
         sources[i].setAttribute('transform', `translate(${s.x},${s.y})`);
         sources[i].setAttribute('data-world-y', String(source.position.y));
         setAttributes(origins[i], { cx: origin.x, cy: origin.y, visibility: Math.hypot(origin.x - s.x, origin.y - s.y) > 2 ? 'visible' : 'hidden' });

@@ -9,6 +9,8 @@ import { teacherCorrespondence, teacherFieldTransform, teacherPose, updatePoseGe
 import { createPresentationAnimator } from './animator';
 import { resolveVisibility } from '../lesson/reveal-policy';
 import { DEFAULT_PALETTE, type PaletteId } from '../visual/field-palettes';
+import { createProbeMarker } from '../visual/point-markers';
+import { formatSettingDistance } from '../ui/copy';
 import './teacher.css';
 
 export { teacherFieldEnvelope } from './layout';
@@ -45,8 +47,7 @@ export function createTeacherStage(container: HTMLElement, options: {
   const field = createFieldView(canvas, fieldSvg, options.invalidate, options.report);
   const comparison = createComparisonView(pathsSvg), correspondenceView = createComparisonView(counterpart);
   const fixedProbe = svgElement('g', { 'data-fixed-probe': '', display: 'none' }, counterpart);
-  svgElement('circle', { cx: 0, cy: 0, r: 7, fill: '#fafbf8', stroke: '#5f497f', 'stroke-width': 2 }, fixedProbe);
-  svgText(fixedProbe, 'P', { x: 13, y: 6, fill: '#5f497f', 'font-size': 20 });
+  createProbeMarker(fixedProbe, '#5f497f');
   const animator = createPresentationAnimator();
   let width = 0, height = 0, cueId = '', sizeKey = '', reduced = false, currentPose: TeacherPose | undefined;
   let lastLayout: CueSpec['layout'] | undefined, previousPose: TeacherPose | undefined, lastTransition: CueSpec['transition'] = 'none';
@@ -131,6 +132,7 @@ export function createTeacherStage(container: HTMLElement, options: {
         probeInput: state.allowedInputs?.includes('probe') ?? false, sourceInput: state.allowedInputs?.includes('separation') ?? false,
         localProbeResult: visible.has('local-probe-result') && spatial,
         displacementScale: pose.layout.displacementScale,
+        pathSourceBadges: [visible.has('path-1') || visible.has('path-baselines'), visible.has('path-2') || visible.has('path-baselines')],
       });
       const ready = !transitioning, baselines = visible.has('path-baselines');
       const display: ComparisonDisplay = {
@@ -183,8 +185,8 @@ export function createTeacherStage(container: HTMLElement, options: {
       representation.hidden = !visible.has('same-probe-label') || transitioning;
       rule.hidden = !visible.has('rule');
       conditions.hidden = !visible.has('condition-values');
-      conditions.textContent = '파장 λ ' + (frame.snapshot.model.wavelength * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 }) +
-        'cm' + (cue.id.endsWith('s7-a-predict') ? '  →  다음 파장 ' + (frame.snapshot.model.wavelength * 50).toLocaleString('ko-KR') + 'cm' : '');
+      conditions.textContent = '파장 λ ' + formatSettingDistance(frame.snapshot.model.wavelength) +
+        (cue.id.endsWith('s7-a-predict') ? '  →  다음 파장 ' + formatSettingDistance(frame.snapshot.model.wavelength / 2) : '');
       legend.hidden = !cue.id.endsWith('s1-field');
       container.dataset.layout = cue.layout; container.dataset.cue = cue.id;
       container.dataset.fieldVisible = String(showBackground && pose.backgroundOpacity > .65);

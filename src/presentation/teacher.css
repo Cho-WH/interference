@@ -20,7 +20,6 @@
 .teacher-stage [data-view="comparison"] text { font-size:20px; }
 .teacher-stage [data-path-distance],.teacher-stage [data-path-difference-label] { font-size:26px; font-weight:650; letter-spacing:-.025em; }
 .teacher-stage [data-source-row] [data-wave-path] { paint-order:stroke; }
-.teacher-field-overlay [data-handle] text { font-size:20px; }
 .teacher-field-overlay [data-local-probe-result] text { font-size:20px; }
 .teacher-condition-values { position:absolute; z-index:4; left:5%; bottom:65px; margin:0; font-size:25px; font-weight:650; }
 .teacher-rule { position:absolute; inset:145px 8% 45px; z-index:4; display:flex; flex-direction:column; justify-content:center; gap:24px; padding:32px 48px; border:1px solid #dce7e3; border-radius:20px; background:#fcfdfbf5; box-shadow:0 18px 70px #0b273c1f; }

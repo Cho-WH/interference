@@ -3,6 +3,34 @@ import { test, expect, type Page } from '@playwright/test';
 const shell = '.teacher-shell';
 const comparison = '.teacher-path-overlay [data-view="comparison"]';
 const state = (page: Page, attribute: string) => page.locator(shell).getAttribute(`data-${attribute}`);
+for (const width of [1280, 390]) {
+  test(`source badges remain single, circular and proportioned at ${width}px`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/?mode=teacher'); await at(page, 's1-field');
+    async function badges() {
+      for (const id of ['1', '2']) {
+        const badge = page.locator(`.teacher-stage [data-source-badge="${id}"]:visible`);
+        await expect(badge).toHaveCount(1);
+        const shape = await badge.evaluate(el => {
+          const c = el.querySelector('circle')!, t = el.querySelector('text')!;
+          const box = c.getBoundingClientRect();
+          return { width: box.width, height: box.height, font: parseFloat(getComputedStyle(t).fontSize), radius: Number(c.getAttribute('r')) };
+        });
+        expect(shape.width).toBeCloseTo(shape.height, 2);
+        expect(shape.font / shape.radius).toBeCloseTo(1, 6);
+      }
+    }
+    await badges(); await reachBoth(page); await badges();
+    const before = Number(await state(page, 'probe-x'));
+    await page.getByRole('button', { name: '관측점 P. 방향키로 이동', exact: true }).press('ArrowLeft');
+    await expect.poll(async () => Number(await state(page, 'probe-x'))).toBeCloseTo(before - .005, 10);
+    await advance(page, '멈추고 펼치기', 's3-parallel'); await badges();
+    await advance(page, '크게 비교하기', 's4-fit'); await badges();
+    await page.getByRole('button', { name: '이전', exact: true }).click(); await at(page, 's3-parallel');
+    await page.getByRole('button', { name: '이전', exact: true }).click(); await at(page, 's2-both'); await badges();
+  });
+}
 async function at(page: Page, cue: string) {
   await expect(page.locator(shell)).toHaveAttribute('data-cue', cue);
   await expect(page.locator(shell)).toHaveAttribute('data-transitioning', 'false');

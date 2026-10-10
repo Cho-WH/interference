@@ -1,6 +1,9 @@
 import type { LessonSpec, InputId, SemanticId, MotionSpeed } from '../lesson/types';
 import type { ExperimentPreset } from '../lesson/types';
 import { FIELD_PALETTES, type PaletteId } from '../visual/field-palettes';
+import { LIMITS } from '../model/state';
+import { PLAYBACK_RATES } from '../model/playback';
+import { formatDistance } from './copy';
 export type PresenterAction = 'next' | 'previous' | 'play' | 'restart' | 'restartExample' | 'replay' | 'explore' | 'return' | 'restoreReturn' | 'restore' | 'settle' | 'blackout' | 'fullscreen' | 'laser' | 'reduced' | 'editor' | 'exit' | 'resume' | 'rehearsalEnd' | 'freeLayout';
 export function createPresenterControls(container: HTMLElement, callbacks: {
   action(action: PresenterAction): void;
@@ -76,24 +79,24 @@ export function createPresenterControls(container: HTMLElement, callbacks: {
       function range(label: string, name: InputId | 'x' | 'y', min: number, max: number, step: number, value: number) {
         const row = document.createElement('label'), text = document.createElement('span'), output = document.createElement('output'), input = document.createElement('input');
         text.textContent = label; input.type = 'range'; input.min = String(min); input.max = String(max); input.step = String(step); input.value = String(value);
-        input.setAttribute('aria-label', label); output.textContent = value.toFixed(1) + ' cm'; row.append(text, output, input); parameters.append(row);
+        input.setAttribute('aria-label', label); output.textContent = formatDistance(value / 100); row.append(text, output, input); parameters.append(row);
         input.disabled = latest.transitioning || !latest.allowed.includes(name === 'x' || name === 'y' ? 'probe' : name);
         input.addEventListener('input', () => {
-          const value = Number(input.value) / 100; output.textContent = Number(input.value).toFixed(1) + ' cm';
+          const value = Number(input.value) / 100; output.textContent = formatDistance(value);
           if (name === 'x' || name === 'y') callbacks.input('probe', { ...latest.preset.probe, [name]: value }); else callbacks.input(name, value);
         }, { signal });
       }
       range('P 가로 위치', 'x', 0, 120, .5, latest.preset.probe.x * 100);
       range('P 세로 위치', 'y', 0, 72, .5, latest.preset.probe.y * 100);
-      range('파장 λ', 'wavelength', 6, 30, .5, latest.preset.wavelength * 100);
-      range('파원 간격', 'separation', 6, 54, .5, latest.preset.separation * 100);
+      range('파장 λ', 'wavelength', LIMITS.wavelength[0] * 100, LIMITS.wavelength[1] * 100, .5, latest.preset.wavelength * 100);
+      range('파원 간격', 'separation', LIMITS.separation[0] * 100, LIMITS.separation[1] * 100, .5, latest.preset.separation * 100);
       function select(label: string, values: [string, string][], value: string, update: (value: string) => void) {
         const row = document.createElement('label'), name = document.createElement('span'), input = document.createElement('select');
         name.textContent = label; row.append(name, input); content.append(row);
         values.forEach(([value, text]) => { const option = document.createElement('option'); option.value = value; option.textContent = text; input.append(option); });
         input.value = value; input.addEventListener('change', () => update(input.value), { signal });
       }
-      select('파동 재생 배속', [['.25','0.25×'],['.5','0.5×'],['1','1×'],['2','2×']], String(latest.rate), value => callbacks.rate(Number(value)));
+      select('파동 재생 배속', PLAYBACK_RATES.map(rate => [String(rate), `${rate}×`]), String(latest.rate), value => callbacks.rate(Number(value)));
       select('화면 연출 속도', [['slow','느리게'],['normal','보통'],['fast','빠르게']], latest.speed, value => callbacks.speed(value as MotionSpeed));
       select('파동 색상', FIELD_PALETTES.map(p => [p.id, p.name]), latest.palette, value => callbacks.palette(value as PaletteId));
       const reveals = document.createElement('fieldset'); reveals.className = 'presenter-reveals'; content.append(reveals);
